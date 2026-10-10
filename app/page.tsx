@@ -5,6 +5,20 @@ import type { FormEvent, ReactNode } from "react";
 import { readLocalCode, removeLocalCode, saveLocalCode } from "./lib/local-cancellation-codes";
 import { SLOTS } from "./lib/booking-rules";
 import type { Slot } from "./lib/booking-rules";
+import {
+  ArrowUpIcon,
+  CalendarIcon,
+  CheckCircleIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  CloseIcon,
+  CopyIcon,
+  ExternalLinkIcon,
+  GuitarMark,
+  InfoIcon,
+  MessageSquareIcon,
+  SmartphoneIcon,
+} from "./components/icons";
 
 type Booking = { date: string; slotStart: string; name: string; createdAt: string };
 type Schedule = {
@@ -99,24 +113,6 @@ function createCancellationCode() {
   return raw.match(/.{4}/g)!.join("-");
 }
 
-function GuitarMark() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 48 48" className="brand-mark">
-      <path d="M29.2 8.3a8.4 8.4 0 0 0-9.5 2.1l-2 2.4-4.1-.7a3 3 0 0 0-3.4 3.4l.8 4.1-2.5 2a8.4 8.4 0 0 0 11.8 11.8l2-2.5 4.1.8a3 3 0 0 0 3.4-3.4l-.7-4.1 2.4-2a8.4 8.4 0 0 0 2.1-9.5l4.9-4.9-2.1-2.1-4.9 4.9Z" fill="currentColor" />
-      <circle cx="18.2" cy="26.1" r="3.1" fill="#f5f0e5" />
-      <path d="m20.5 23.9 13.2-13.2m-9.8 16.6 13.2-13.2" fill="none" stroke="#f5f0e5" strokeWidth="1.1" />
-    </svg>
-  );
-}
-
-function ArrowIcon({ direction }: { direction: "left" | "right" }) {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 20 20" className="arrow-icon" data-direction={direction}>
-      <path d="M12.5 4.5 7 10l5.5 5.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 function DialogShell({
   title,
   children,
@@ -129,26 +125,45 @@ function DialogShell({
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+
   useEffect(() => {
     const dialog = dialogRef.current;
     if (dialog && !dialog.open) dialog.showModal();
   }, []);
+
+  const handleBackdropClick = (event: React.MouseEvent<HTMLDialogElement>) => {
+    if (busy) return;
+    if (event.target === dialogRef.current) {
+      dialogRef.current?.close();
+    }
+  };
 
   return (
     <dialog
       ref={dialogRef}
       className="booking-dialog"
       aria-labelledby="dialog-title"
+      onClick={handleBackdropClick}
       onCancel={(event) => {
         event.preventDefault();
         if (!busy) dialogRef.current?.close();
       }}
       onClose={onClose}
     >
+      <div className="bottom-sheet-handle" aria-hidden="true" />
       <div className="dialog-content">
         <div className="dialog-heading">
           <h2 id="dialog-title">{title}</h2>
-          {!busy && <button className="icon-button dialog-close" type="button" aria-label="关闭对话框" onClick={() => dialogRef.current?.close()}><span aria-hidden="true">×</span></button>}
+          {!busy && (
+            <button
+              className="icon-button dialog-close"
+              type="button"
+              aria-label="关闭对话框"
+              onClick={() => dialogRef.current?.close()}
+            >
+              <CloseIcon className="dialog-close-icon" />
+            </button>
+          )}
         </div>
         {children}
       </div>
@@ -178,6 +193,7 @@ export default function Home() {
   const [adminKey, setAdminKey] = useState("");
   const [adminConfirmed, setAdminConfirmed] = useState(false);
   const [codeWasLoaded, setCodeWasLoaded] = useState(false);
+  const [showManualCodeInput, setShowManualCodeInput] = useState(false);
   const [copyMessage, setCopyMessage] = useState("");
   const [feedbackContact, setFeedbackContact] = useState("");
   const [feedbackContent, setFeedbackContent] = useState("");
@@ -266,6 +282,7 @@ export default function Home() {
     setAdminKey("");
     setAdminConfirmed(false);
     setCancellationCode("");
+    setShowManualCodeInput(false);
     setDialogError("");
     setCopyMessage("");
   }, [isSubmitting]);
@@ -331,6 +348,7 @@ export default function Home() {
     const savedCode = readLocalCode(date, slot.start, booking.createdAt);
     setCancellationCode(savedCode);
     setCodeWasLoaded(Boolean(savedCode));
+    setShowManualCodeInput(!savedCode);
     setAdminMode(false);
     setAdminKey("");
     setAdminConfirmed(false);
@@ -480,25 +498,20 @@ export default function Home() {
           <span className="brand-icon"><GuitarMark /></span>
           <span className="brand-name">MUC音协 · 排练室</span>
         </a>
-        <a className="header-link" href="#schedule">查看排期 <span aria-hidden="true">↘</span></a>
+        <a className="header-link" href="#schedule">查看排期</a>
       </header>
 
       <div id="top" className="page-content">
         <section className="hero" aria-labelledby="page-title">
           <div className="hero-copy">
-            <p className="eyebrow">MUC MUSIC ASSOCIATION / 排练室预约</p>
-            <h1 id="page-title">排练室预约</h1>
-            <p className="hero-slogan">民谣诗意 · 热血摇滚</p>
-            <p className="hero-description">每日 13 个独立时段 · 仅限单组独占 · 实时同步排期</p>
+            <h1 id="page-title">排练室时段预约</h1>
+            <p className="hero-description">每日 08:00 – 21:00 · 13 个独立时段 · 单组独占 · 实时同步排期</p>
           </div>
         </section>
 
         <section id="schedule" className="schedule-section" aria-labelledby="schedule-title">
           <div className="section-heading">
-            <div>
-              <p className="eyebrow">SCHEDULE / 本周时段</p>
-              <h2 id="schedule-title">时段排期</h2>
-            </div>
+            <h2 id="schedule-title">时段排期</h2>
             <div className="legend" aria-label="排期状态说明">
               <span><i className="legend-dot available-dot" />可预约</span>
               <span><i className="legend-dot booked-dot" />已占用</span>
@@ -509,12 +522,12 @@ export default function Home() {
           <div className="schedule-panel">
             <div className="schedule-toolbar">
               <div className="week-control">
-                <button className="icon-button week-arrow" type="button" aria-label="上一周" onClick={() => shiftWeek(-1)}><ArrowIcon direction="left" /></button>
+                <button className="icon-button week-arrow" type="button" aria-label="上一周" onClick={() => shiftWeek(-1)}><ChevronLeftIcon className="toolbar-icon" /></button>
                 <h3 className="week-label" aria-live="polite">{weekLabel}</h3>
-                <button className="icon-button week-arrow" type="button" aria-label="下一周" onClick={() => shiftWeek(1)}><ArrowIcon direction="right" /></button>
+                <button className="icon-button week-arrow" type="button" aria-label="下一周" onClick={() => shiftWeek(1)}><ChevronRightIcon className="toolbar-icon" /></button>
               </div>
               <label className="date-jump">
-                <span className="calendar-symbol" aria-hidden="true">▦</span>
+                <CalendarIcon className="toolbar-icon" />
                 <span className="date-jump-label">跳转日期</span>
                 <input aria-label="选择要查看的日期" type="date" value={jumpDate} onChange={(event) => jumpToDate(event.target.value)} />
               </label>
@@ -550,44 +563,74 @@ export default function Home() {
                   <span className="daily-note">13 个时段 · 每时段 60 分钟</span>
                 </div>
                 <div className="slot-grid" aria-label={`${selectedDate}小时排期`}>
-                {(schedule?.slots ?? SLOTS).map((slot) => {
-                  const booking = bookingsBySlot.get(`${selectedDate}:${slot.start}`);
-                  const ended = dateIsEnded(selectedDate, slot, schedule);
-                  const status = ended ? "ended" : booking ? "booked" : "available";
-                  const statusText = ended ? "已结束" : booking ? "已占用" : "空闲";
-                  return (
-                    <article className={`day-card ${status}`} key={slot.start} aria-label={`${slot.start}–${slot.end}`}>
-                      <div className="day-card-top">
-                        <span className="hour-label">{slot.start}–{slot.end}</span>
-                        <div className="day-status"><i className="status-dot" /><span>{statusText}</span></div>
-                      </div>
-                      <div className="day-card-body">
-                        {booking ? (
-                          <p className="booking-name" title={booking.name}>
-                            <span className="booking-badge">占用</span>
-                            <span className="booking-owner">{booking.name}</span>
-                          </p>
-                        ) : (
-                          <p className="slot-idle-hint">{ended ? "该时段已过" : "时段开放预约"}</p>
-                        )}
-                      </div>
-                      <div className="day-card-action">
-                        {booking ? (
-                          <button type="button" className="text-action cancel-action" onClick={() => openCancellation(selectedDate, slot)} aria-label={`取消${selectedDate} ${slot.start}–${slot.end}的预约`}>退订时段 <span aria-hidden="true">→</span></button>
-                        ) : ended ? (
-                          <span className="ended-note">—</span>
-                        ) : (
-                          <button type="button" className="reserve-button" disabled={!hasLoaded || Boolean(loadError)} onClick={() => openBooking(selectedDate, slot)} aria-label={`预约${selectedDate} ${slot.start}–${slot.end}`}>立即预约 <span aria-hidden="true">↗</span></button>
-                        )}
-                      </div>
-                    </article>
-                  );
-                })}
+                  {(schedule?.slots ?? SLOTS).map((slot) => {
+                    const booking = bookingsBySlot.get(`${selectedDate}:${slot.start}`);
+                    const ended = dateIsEnded(selectedDate, slot, schedule);
+                    const hasLocalCode = Boolean(booking && hasLoaded && readLocalCode(selectedDate, slot.start, booking.createdAt));
+
+                    if (ended) {
+                      return (
+                        <div className="slot-card ended" key={slot.start} aria-label={`${slot.start}–${slot.end} 已结束`}>
+                          <div className="slot-card-left">
+                            <span className="slot-time">{slot.start}–{slot.end}</span>
+                            <span className="slot-status-pill ended">已结束</span>
+                          </div>
+                          <span className="slot-empty-mark">—</span>
+                        </div>
+                      );
+                    }
+
+                    if (booking) {
+                      return (
+                        <div
+                          className={`slot-card booked ${hasLocalCode ? "is-mine" : ""}`}
+                          key={slot.start}
+                          aria-label={`${slot.start}–${slot.end} 已占用：${booking.name}`}
+                        >
+                          <div className="slot-card-left">
+                            <span className="slot-time">{slot.start}–{slot.end}</span>
+                            <div className="slot-occupant">
+                              <span className="occupant-name" title={booking.name}>{booking.name}</span>
+                              {hasLocalCode && <span className="my-tag">我的</span>}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className={`slot-action-btn ${hasLocalCode ? "mine-cancel" : ""}`}
+                            onClick={() => openCancellation(selectedDate, slot)}
+                            aria-label={`退订 ${selectedDate} ${slot.start}–${slot.end} 的预约`}
+                          >
+                            {hasLocalCode ? "一键退订" : "退订"}
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <button
+                        type="button"
+                        className="slot-card available"
+                        key={slot.start}
+                        disabled={!hasLoaded || Boolean(loadError)}
+                        onClick={() => openBooking(selectedDate, slot)}
+                        aria-label={`预约 ${selectedDate} ${slot.start}–${slot.end}`}
+                      >
+                        <div className="slot-card-left">
+                          <span className="slot-time">{slot.start}–{slot.end}</span>
+                          <span className="slot-status-pill available">空闲</span>
+                        </div>
+                        <span className="slot-hint-text">点击预约</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </>
             )}
 
-            <div className="schedule-footnote"><span className="footnote-icon" aria-hidden="true">i</span><p>预约名称将公开显示。凭 16 位取消码可自行退订；遗失取消码请联系排练室负责人。</p></div>
+            <div className="schedule-footnote">
+              <InfoIcon className="footnote-icon" />
+              <p>预约名称将公开显示。凭证已在当前设备自动保存；若更换设备退订，可使用预约时留存的备用取消码。</p>
+            </div>
           </div>
         </section>
       </div>
@@ -601,9 +644,13 @@ export default function Home() {
           <span className="footer-author">
             Crafted by <a href="https://elma-gohan.xyz" target="_blank" rel="noopener noreferrer" className="footer-author-link" title="访问个人博客">n-bunana</a>
             <span className="footer-sep">/</span>
-            <a href="https://github.com/dailiuyi" target="_blank" rel="noopener noreferrer" className="footer-author-link" title="访问 GitHub">GitHub ↗</a>
+            <a href="https://github.com/dailiuyi" target="_blank" rel="noopener noreferrer" className="footer-author-link" title="访问 GitHub">
+              GitHub <ExternalLinkIcon className="footer-icon" />
+            </a>
           </span>
-          <a href="#top" className="footer-top">回到顶部 ↑</a>
+          <a href="#top" className="footer-top">
+            回到顶部 <ArrowUpIcon className="footer-icon" />
+          </a>
         </div>
       </footer>
 
@@ -615,7 +662,7 @@ export default function Home() {
           onClick={openFeedback}
           aria-label="打开意见与需求反馈弹窗"
         >
-          <span className="feedback-pill-icon" aria-hidden="true">✎</span>
+          <MessageSquareIcon className="feedback-pill-icon" />
           <span className="feedback-pill-text">提需求 / 意见反馈</span>
         </button>
       </aside>
@@ -630,9 +677,11 @@ export default function Home() {
               {dialogError && <p className="dialog-error" role="alert">{dialogError}</p>}
               {bookingOutcomeUncertain && bookingCancellationCode && (
                 <div className="uncertain-code">
-                  <span className="code-label">生成的取消码</span>
+                  <span className="code-label">生成的备用取消码</span>
                   <code className="cancellation-code">{bookingCancellationCode}</code>
-                  <button className="copy-button" type="button" onClick={() => void copyCancellationCode(bookingCancellationCode)}>复制</button>
+                  <button className="copy-button" type="button" onClick={() => void copyCancellationCode(bookingCancellationCode)}>
+                    <CopyIcon className="button-icon" /> 复制
+                  </button>
                   <p className="copy-message" aria-live="polite">{copyMessage}</p>
                 </div>
               )}
@@ -644,31 +693,158 @@ export default function Home() {
             <form className="dialog-form" onSubmit={handleCancellation}>
               <p className="dialog-intro">{formatDate(dialog.date, { year: "numeric", month: "long", day: "numeric", weekday: "long" })} · {dialog.slot.start}–{dialog.slot.end}</p>
               <p className="cancellation-owner">当前预约：<strong>{dialog.booking.name}</strong></p>
-              <label className="consent-check cancellation-mode" htmlFor="admin-cancellation-mode"><input id="admin-cancellation-mode" type="checkbox" disabled={isSubmitting} checked={adminMode} onChange={(event) => { setAdminMode(event.target.checked); setAdminKey(""); setAdminConfirmed(false); setDialogError(""); }} /><span>管理员协助模式</span></label>
-              {adminMode ? (
+
+              {codeWasLoaded && !showManualCodeInput && !adminMode ? (
+                <div className="local-credential-banner">
+                  <SmartphoneIcon className="banner-icon" />
+                  <div>
+                    <strong>已识别本设备的预约凭证</strong>
+                    <p>退订此预约无需手动输入取消码，点击下方确认即可一键退订。</p>
+                  </div>
+                </div>
+              ) : null}
+
+              {(!codeWasLoaded || showManualCodeInput) && !adminMode && (
                 <>
-                  <label className="form-field" htmlFor="admin-cancellation-key"><span>管理员密钥</span><input id="admin-cancellation-key" type="password" autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={256} required disabled={isSubmitting} value={adminKey} onChange={(event) => setAdminKey(event.target.value)} placeholder="输入管理员密钥" /></label>
-                  <label className="consent-check" htmlFor="admin-cancellation-confirmed"><input id="admin-cancellation-confirmed" type="checkbox" disabled={isSubmitting} checked={adminConfirmed} onChange={(event) => setAdminConfirmed(event.target.checked)} /><span>已核实身份，确认取消预约</span></label>
-                </>
-              ) : (
-                <>
-                  <label className="form-field" htmlFor="booking-cancellation-code"><span>取消码</span><input id="booking-cancellation-code" type="text" autoCapitalize="characters" autoComplete="off" autoFocus disabled={isSubmitting} value={cancellationCode} onChange={(event) => setCancellationCode(event.target.value)} placeholder="请输入 16 位取消码" /></label>
-                  <p className="field-hint">{codeWasLoaded ? "已从本机读取保存的取消码" : "请输入预约时获得的取消码"}</p>
+                  <label className="form-field" htmlFor="booking-cancellation-code">
+                    <span>取消码</span>
+                    <input
+                      id="booking-cancellation-code"
+                      type="text"
+                      autoCapitalize="characters"
+                      autoComplete="off"
+                      autoFocus
+                      disabled={isSubmitting}
+                      value={cancellationCode}
+                      onChange={(event) => setCancellationCode(event.target.value)}
+                      placeholder="请输入 16 位取消码"
+                    />
+                  </label>
+                  <p className="field-hint">
+                    {codeWasLoaded ? "已从本机暂存读取" : "未在本机检测到预约凭证，请输入预约时生成的 16 位取消码"}
+                  </p>
                 </>
               )}
+
+              {adminMode && (
+                <>
+                  <label className="form-field" htmlFor="admin-cancellation-key">
+                    <span>管理员密钥</span>
+                    <input
+                      id="admin-cancellation-key"
+                      type="password"
+                      autoComplete="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      maxLength={256}
+                      required
+                      disabled={isSubmitting}
+                      value={adminKey}
+                      onChange={(event) => setAdminKey(event.target.value)}
+                      placeholder="输入管理员密钥"
+                    />
+                  </label>
+                  <label className="consent-check" htmlFor="admin-cancellation-confirmed">
+                    <input
+                      id="admin-cancellation-confirmed"
+                      type="checkbox"
+                      disabled={isSubmitting}
+                      checked={adminConfirmed}
+                      onChange={(event) => setAdminConfirmed(event.target.checked)}
+                    />
+                    <span>已核实身份，确认取消预约</span>
+                  </label>
+                </>
+              )}
+
+              {codeWasLoaded && (
+                <button
+                  type="button"
+                  className="credential-toggle-btn"
+                  onClick={() => {
+                    setShowManualCodeInput((prev) => !prev);
+                    setDialogError("");
+                  }}
+                >
+                  {showManualCodeInput ? "返回一键退订" : "手动修改取消码"}
+                </button>
+              )}
+
+              <label className="consent-check cancellation-mode" htmlFor="admin-cancellation-mode">
+                <input
+                  id="admin-cancellation-mode"
+                  type="checkbox"
+                  disabled={isSubmitting}
+                  checked={adminMode}
+                  onChange={(event) => {
+                    setAdminMode(event.target.checked);
+                    setAdminKey("");
+                    setAdminConfirmed(false);
+                    setDialogError("");
+                  }}
+                />
+                <span>管理员协助模式</span>
+              </label>
+
               {dialogError && <p className="dialog-error" role="alert">{dialogError}</p>}
-              <button className="dialog-submit" type="submit" disabled={isSubmitting || (adminMode && (!adminKey || !adminConfirmed))}>{isSubmitting ? <><span className="button-spinner" />提交中…</> : "确认取消"}</button>
+              <button
+                className="dialog-submit"
+                type="submit"
+                disabled={isSubmitting || (adminMode && (!adminKey || !adminConfirmed)) || (!adminMode && !cancellationCode.trim())}
+              >
+                {isSubmitting ? (
+                  <><span className="button-spinner" />处理中…</>
+                ) : codeWasLoaded && !showManualCodeInput && !adminMode ? (
+                  "确认一键退订"
+                ) : (
+                  "确认退订"
+                )}
+              </button>
             </form>
           )}
 
           {dialog.kind === "booked" && (
             <div className="success-content">
               <p className="dialog-intro">{formatDate(dialog.date, { year: "numeric", month: "long", day: "numeric", weekday: "long" })} · {dialog.slot.start}–{dialog.slot.end}</p>
-              <div className="success-mark" aria-hidden="true">✓</div>
+              <div className="success-mark" aria-hidden="true">
+                <CheckCircleIcon className="success-icon" />
+              </div>
               <p className="success-message">预约已成功（{dialog.name}）</p>
-              <div className="code-card"><span className="code-label">取消凭证码</span><code className="cancellation-code">{dialog.cancellationCode}</code><button className="copy-button" type="button" onClick={() => void copyCancellationCode(dialog.cancellationCode)}>复制凭证码</button></div>
-              <p className="save-code-note">{dialog.savedLocally ? "凭证码已在此浏览器暂存。若更换设备请提前留存。" : "请妥善复制并保存此凭证码。"}</p>
-              <p className="copy-message" aria-live="polite">{copyMessage}</p>
+
+              {dialog.savedLocally ? (
+                <div className="credential-status-card saved">
+                  <div className="credential-card-header">
+                    <SmartphoneIcon className="credential-icon" />
+                    <div>
+                      <strong>已保存至当前设备</strong>
+                      <p>后续在本设备访问排期表，可直接一键退订，无需手动输入取消码。</p>
+                    </div>
+                  </div>
+                  <details className="credential-backup-details">
+                    <summary>查看跨设备备用取消码</summary>
+                    <div className="code-card">
+                      <span className="code-label">备用取消码（更换设备退订时使用）</span>
+                      <code className="cancellation-code">{dialog.cancellationCode}</code>
+                      <button className="copy-button" type="button" onClick={() => void copyCancellationCode(dialog.cancellationCode)}>
+                        <CopyIcon className="button-icon" /> 复制备用码
+                      </button>
+                    </div>
+                  </details>
+                </div>
+              ) : (
+                <div className="credential-status-card unsaved">
+                  <strong>当前环境无法暂存凭证</strong>
+                  <p>检测到无痕模式或存储受限，请妥善复制并保存下方 16 位取消码。</p>
+                  <div className="code-card">
+                    <code className="cancellation-code">{dialog.cancellationCode}</code>
+                    <button className="copy-button" type="button" onClick={() => void copyCancellationCode(dialog.cancellationCode)}>
+                      <CopyIcon className="button-icon" /> 复制取消码
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {copyMessage && <p className="copy-message" aria-live="polite">{copyMessage}</p>}
               <button className="dialog-submit" type="button" onClick={closeDialog}>完成</button>
             </div>
           )}
@@ -716,7 +892,9 @@ export default function Home() {
 
           {dialog.kind === "feedback-success" && (
             <div className="success-content">
-              <div className="success-mark" aria-hidden="true">✓</div>
+              <div className="success-mark" aria-hidden="true">
+                <CheckCircleIcon className="success-icon" />
+              </div>
               <p className="success-message">反馈已成功送达！</p>
               <p className="save-code-note">已记录入排练室数据库，负责人与机器人会定期拉取并跟进处理。</p>
               <p className="dialog-maintainer-note">
@@ -727,7 +905,14 @@ export default function Home() {
           )}
 
           {dialog.kind === "cancelled" && (
-            <div className="success-content"><p className="dialog-intro">{formatDate(dialog.date, { year: "numeric", month: "long", day: "numeric", weekday: "long" })} · {dialog.slot.start}–{dialog.slot.end}</p><div className="success-mark" aria-hidden="true">✓</div><p className="success-message">预约已成功取消</p><button className="dialog-submit" type="button" onClick={closeDialog}>完成</button></div>
+            <div className="success-content">
+              <p className="dialog-intro">{formatDate(dialog.date, { year: "numeric", month: "long", day: "numeric", weekday: "long" })} · {dialog.slot.start}–{dialog.slot.end}</p>
+              <div className="success-mark" aria-hidden="true">
+                <CheckCircleIcon className="success-icon" />
+              </div>
+              <p className="success-message">预约已成功取消</p>
+              <button className="dialog-submit" type="button" onClick={closeDialog}>完成</button>
+            </div>
           )}
         </DialogShell>
       )}

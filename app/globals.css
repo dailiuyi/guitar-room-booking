@@ -481,154 +481,184 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
   font-family: var(--font-mono);
 }
 
-/* 时段网格卡片：Astro 博客 Editorial 卡片质感 */
+/* 时段排期网格与色块 */
 .slot-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
-  gap: 12px;
-}
-.day-card {
-  min-width: 0;
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  transition: all .2s var(--ease);
-}
-.day-card.available {
-  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.8), rgba(247, 247, 245, 0.4));
-}
-.day-card.available:hover {
-  border-color: var(--border-strong);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
-  transform: translateY(-2px);
-}
-.day-card.booked {
-  background: #fcf9f5;
-  border-color: #ebdcd0;
-}
-.day-card.ended {
-  background: var(--surface-2);
-  border-color: transparent;
-  opacity: 0.6;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
 }
 
-.day-card-top {
+.slot-card {
+  min-width: 0;
+  height: 52px;
+  padding: 0 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  text-align: left;
+  transition: all 0.15s ease;
+  user-select: none;
 }
-.hour-label {
-  color: var(--strong);
-  font-size: 14px;
-  font-weight: 600;
-  font-family: var(--font-mono);
-  letter-spacing: -0.02em;
+
+/* 空闲时段：浅灰/白底可点击色块 */
+button.slot-card.available {
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  border-color: var(--border);
 }
-.day-status {
+
+button.slot-card.available:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--accent-deep);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.04);
+}
+
+button.slot-card.available:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+button.slot-card.available:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 已占用时段：柔和色块，显示使用者名称 */
+.slot-card.booked {
+  background: #fbf8f5;
+  border-color: #ebdcd0;
+}
+
+.slot-card.booked.is-mine {
+  background: #f3f7f4;
+  border-color: #c7dccb;
+}
+
+/* 已结束时段：低饱和度置灰 */
+.slot-card.ended {
+  background: var(--surface-2);
+  border-color: transparent;
+  opacity: 0.55;
+  color: var(--muted);
+  cursor: default;
+}
+
+.slot-card-left {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.slot-time {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--strong);
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.ended .slot-time {
+  color: var(--muted);
+}
+
+.slot-status-pill {
   font-size: 11px;
   font-weight: 500;
-  color: var(--muted);
+  padding: 1px 6px;
+  border-radius: 4px;
+  line-height: 1.4;
+  white-space: nowrap;
 }
-.available .status-dot { background: var(--accent); }
-.available .day-status { color: var(--accent); }
-.booked .status-dot { background: #c67448; }
-.booked .day-status { color: #b15d2f; }
-.ended .status-dot { background: #a8a8a2; }
-.ended .day-status { color: #8e8e87; }
 
-.day-card-body {
-  margin: 10px 0 0;
-  min-height: 24px;
-  display: flex;
-  align-items: center;
+.slot-status-pill.available {
+  background: var(--accent-light);
+  color: var(--accent-deep);
 }
-.slot-idle-hint {
-  margin: 0;
+
+.slot-status-pill.ended {
+  background: transparent;
   color: var(--muted);
   font-size: 11px;
 }
-.booking-name {
-  margin: 0;
-  display: inline-flex;
+
+.slot-occupant {
+  display: flex;
   align-items: center;
   gap: 6px;
-  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
-.booking-badge {
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: #f7e6db;
-  color: #ab5627;
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1.3;
-}
-.booking-owner {
-  color: var(--strong);
+
+.occupant-name {
   font-size: 12px;
   font-weight: 600;
+  color: var(--strong);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.day-card-action {
-  margin-top: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-}
-.reserve-button {
-  width: 100%;
-  height: 32px;
-  padding: 0 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--text);
-  color: var(--bg);
-  font-size: 12px;
+.my-tag {
+  flex-shrink: 0;
+  font-size: 10px;
   font-weight: 600;
-  cursor: pointer;
-  transition: all .2s var(--ease);
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #d8eadb;
+  color: #2b5937;
 }
-.reserve-button:hover:not(:disabled) {
-  background: var(--strong);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-.reserve-button:disabled {
-  background: var(--surface-2);
-  color: var(--muted);
-  border-color: var(--border);
-  cursor: not-allowed;
-}
-.reserve-button span { font-size: 13px; opacity: 0.8; }
 
-.text-action {
-  padding: 4px 0;
-  border: 0;
+.slot-hint-text {
+  font-size: 11px;
+  color: var(--muted);
+  transition: color 0.15s ease;
+  white-space: nowrap;
+}
+
+button.slot-card.available:hover .slot-hint-text {
+  color: var(--strong);
+  font-weight: 500;
+}
+
+.slot-action-btn {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
   background: transparent;
-  color: #ab5627;
+  color: #b15d2f;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  transition: all 0.15s ease;
 }
-.text-action:hover { text-decoration: underline; }
-.ended-note { color: var(--muted); font-size: 11px; font-family: var(--font-mono); }
+
+.slot-action-btn:hover {
+  background: rgba(177, 93, 47, 0.08);
+  border-color: rgba(177, 93, 47, 0.2);
+}
+
+.slot-action-btn.mine-cancel {
+  color: var(--accent-deep);
+}
+
+.slot-action-btn.mine-cancel:hover {
+  background: var(--accent-light);
+  border-color: rgba(63, 95, 89, 0.2);
+}
+
+.slot-empty-mark {
+  color: var(--muted);
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
 
 .schedule-footnote {
   margin-top: 24px;
@@ -644,15 +674,8 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 .footnote-icon {
   width: 16px;
   height: 16px;
-  display: inline-grid;
-  flex: 0 0 16px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--surface-2);
+  flex-shrink: 0;
   color: var(--muted);
-  font-size: 10px;
-  font-weight: 600;
-  font-family: var(--font-mono);
 }
 
 .load-error {
@@ -739,14 +762,14 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 .footer-top { color: var(--muted); transition: color .2s ease; margin-left: 8px; }
 .footer-top:hover { color: var(--strong); }
 
-/* 对话框：居中、磨砂玻璃与细腻圆角 */
+/* 对话框：居中磨砂玻璃，移动端底部抽屉 Bottom Sheet */
 .booking-dialog {
   position: fixed;
   inset: 0;
   margin: auto;
-  width: min(420px, calc(100vw - 32px));
-  max-width: 420px;
-  max-height: min(85vh, 580px);
+  width: min(440px, calc(100vw - 32px));
+  max-width: 440px;
+  max-height: min(85vh, 600px);
   padding: 0;
   overflow: auto;
   border: 1px solid var(--border);
@@ -760,7 +783,10 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
-.dialog-content { padding: 26px; }
+.bottom-sheet-handle {
+  display: none;
+}
+.dialog-content { padding: 24px; }
 .dialog-heading { display: flex; align-items: center; justify-content: space-between; }
 .dialog-heading h2 {
   margin: 0;
@@ -770,11 +796,9 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
   letter-spacing: -0.02em;
 }
 .dialog-close {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  font-size: 16px;
-  line-height: 1;
   border: 0;
   background: var(--surface-2);
   color: var(--muted);
@@ -784,6 +808,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
   transition: all .15s ease;
 }
 .dialog-close:hover { background: var(--border); color: var(--strong); }
+.dialog-close-icon { width: 16px; height: 16px; }
 .dialog-intro {
   margin: 6px 0 18px;
   color: var(--muted);
@@ -944,23 +969,161 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 .success-content { text-align: center; }
 .success-content .dialog-intro { text-align: left; }
 .success-mark {
-  width: 40px;
-  height: 40px;
-  margin: 6px auto 12px;
+  width: 44px;
+  height: 44px;
+  margin: 6px auto 14px;
   display: grid;
   place-items: center;
   border-radius: 50%;
   background: #eaf3ee;
   color: var(--accent-deep);
-  font-size: 18px;
-  font-weight: 600;
+}
+.success-icon {
+  width: 24px;
+  height: 24px;
 }
 .success-message {
   margin: 0 0 16px;
   color: var(--strong);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 }
+.button-icon {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+.toolbar-icon {
+  width: 16px;
+  height: 16px;
+}
+.footer-icon {
+  width: 12px;
+  height: 12px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 3px;
+}
+.feedback-pill-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+/* 本地凭据识别横幅（退订弹窗） */
+.local-credential-banner {
+  margin: 10px 0 14px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-radius: var(--radius-sm);
+  background: #f0f7f3;
+  border: 1px solid #c7e1ce;
+  text-align: left;
+}
+.local-credential-banner .banner-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: #2b7343;
+}
+.local-credential-banner strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1c4b2b;
+  margin-bottom: 2px;
+}
+.local-credential-banner p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #3b5f46;
+}
+.credential-toggle-btn {
+  margin: 8px 0 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  align-self: flex-start;
+}
+.credential-toggle-btn:hover {
+  color: var(--strong);
+}
+
+/* 预约成功凭证状态卡片 */
+.credential-status-card {
+  margin: 12px 0 16px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+.credential-status-card.saved {
+  background: #f2f8f4;
+  border: 1px solid #cce5d4;
+}
+.credential-status-card.unsaved {
+  background: #fbf8f2;
+  border: 1px solid #ecdcc1;
+}
+.credential-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.credential-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  color: #266b3d;
+  margin-top: 1px;
+}
+.credential-status-card strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--strong);
+  margin-bottom: 2px;
+}
+.credential-status-card p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #395741;
+}
+.credential-backup-details {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed #cce5d4;
+  font-size: 11px;
+}
+.credential-backup-details summary {
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  font-weight: 500;
+}
+.credential-backup-details summary:hover {
+  color: var(--strong);
+}
+.credential-backup-details .code-card {
+  margin-top: 8px;
+}
+
 .code-card, .uncertain-code {
   padding: 14px;
   display: flex;
@@ -990,13 +1153,16 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   transition: all .15s ease;
 }
 .copy-button:hover { background: var(--surface-2); }
 .save-code-note { margin: 12px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; text-align: center; }
 .copy-message { min-height: 16px; margin: 6px 0 0; color: var(--accent-deep); font-size: 11px; }
 
-/* 移动端优雅紧凑流式布局 */
+/* 移动端优雅紧凑流式布局 & 底部抽屉 Bottom Sheet */
 @media (max-width: 768px) {
   .site-header, .site-footer, .page-content { width: calc(100% - 32px); }
   .hero { padding: 24px 0 16px; }
@@ -1024,49 +1190,47 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
   .daily-heading { font-size: 13px; }
   .daily-note { font-size: 10px; }
 
-  /* 移动端紧凑横向条目 */
-  .slot-grid { grid-template-columns: 1fr; gap: 6px; }
-  .day-card {
-    padding: 9px 12px;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
+  /* 移动端紧凑横向色块 */
+  .slot-grid { grid-template-columns: 1fr; gap: 8px; }
+  .slot-card {
+    height: 48px;
+    padding: 0 12px;
     border-radius: 10px;
   }
-  .day-card-top {
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-  }
-  .hour-label { font-size: 12px; }
-  .day-status { font-size: 10px; }
-  .day-card-body {
-    margin: 0;
-    margin-left: 8px;
-    flex: 1;
-    min-height: 0;
-  }
-  .slot-idle-hint { display: none; }
-  .booking-name { max-width: 100px; }
-  .booking-badge { font-size: 9px; padding: 1px 4px; }
-  .booking-owner { font-size: 11px; }
-
-  .day-card-action {
-    margin-top: 0;
-    flex: 0 0 auto;
-  }
-  .reserve-button {
-    height: 28px;
-    padding: 0 10px;
-    font-size: 11px;
-    border-radius: 6px;
-  }
-  .text-action { font-size: 11px; padding: 2px 0; }
-  .ended-note { font-size: 11px; }
+  .slot-time { font-size: 12px; }
+  .occupant-name { max-width: 130px; font-size: 11px; }
 
   .schedule-footnote { font-size: 11px; margin-top: 16px; padding-top: 12px; }
-  .dialog-content { padding: 20px; }
-  .footer-meta { display: none; }
+  .footer-meta { font-size: 10px; opacity: 0.85; }
+
+  /* 移动端底部抽屉 Bottom Sheet */
+  .booking-dialog {
+    inset: auto 0 0 0;
+    margin: 0;
+    width: 100%;
+    max-width: 100%;
+    max-height: 88vh;
+    border-radius: 20px 20px 0 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    animation: sheetSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.15);
+  }
+  .booking-dialog::backdrop {
+    animation: sheetFadeIn 0.2s ease;
+  }
+  .bottom-sheet-handle {
+    display: block;
+    width: 38px;
+    height: 4px;
+    margin: 10px auto 2px;
+    background: var(--border-strong);
+    border-radius: 999px;
+  }
+  .dialog-content {
+    padding: 14px 20px max(env(safe-area-inset-bottom, 20px), 20px);
+  }
 
   /* 移动端悬浮胶囊微调 */
   .floating-feedback-bar {
@@ -1077,6 +1241,24 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
     height: 36px;
     padding: 0 13px;
     font-size: 12px;
+  }
+}
+
+@keyframes sheetSlideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes sheetFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 

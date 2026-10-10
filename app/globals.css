@@ -702,18 +702,41 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 
 /* Footer: 干净的杂志末尾 */
 .site-footer {
-  height: 64px;
+  min-height: 64px;
+  padding: 16px 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 20px;
   border-top: 1px solid var(--border);
   color: var(--muted);
   font-size: 11px;
   font-family: var(--font-mono);
 }
+.footer-group-left, .footer-group-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
 .footer-title { color: var(--strong); font-weight: 600; letter-spacing: 0.05em; }
 .footer-meta { color: var(--muted); }
-.footer-top { color: var(--muted); transition: color .2s ease; }
+.footer-author {
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.footer-author-link {
+  color: var(--strong);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color .15s ease;
+}
+.footer-author-link:hover { color: var(--accent-deep); }
+.footer-sep { color: var(--border-strong); }
+.footer-top { color: var(--muted); transition: color .2s ease; margin-left: 8px; }
 .footer-top:hover { color: var(--strong); }
 
 /* 对话框：居中、磨砂玻璃与细腻圆角 */
@@ -766,6 +789,36 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
   color: var(--muted);
   font-size: 12px;
   font-family: var(--font-mono);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dialog-maintainer {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--accent-light);
+  color: var(--accent-deep);
+  font-size: 10px;
+  font-weight: 600;
+}
+.dialog-maintainer-link {
+  color: var(--strong);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: opacity .15s ease;
+}
+.dialog-maintainer-link:hover {
+  opacity: 0.75;
+}
+.dialog-maintainer-note {
+  margin: 10px 0 0;
+  color: var(--accent-deep);
+  font-size: 11px;
+  font-weight: 500;
 }
 .dialog-form { display: flex; flex-direction: column; }
 .form-field {

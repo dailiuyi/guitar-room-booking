@@ -593,9 +593,18 @@ export default function Home() {
       </div>
 
       <footer className="site-footer">
-        <span className="footer-title">MUC MUSIC ASSOCIATION</span>
-        <span className="footer-meta">民谣诗意 · 热血摇滚</span>
-        <a href="#top" className="footer-top">回到顶部 ↑</a>
+        <div className="footer-group-left">
+          <span className="footer-title">MUC MUSIC ASSOCIATION</span>
+          <span className="footer-meta">民谣诗意 · 热血摇滚</span>
+        </div>
+        <div className="footer-group-right">
+          <span className="footer-author">
+            Crafted by <a href="https://elma-gohan.xyz" target="_blank" rel="noopener noreferrer" className="footer-author-link" title="访问个人博客">n-bunana</a>
+            <span className="footer-sep">/</span>
+            <a href="https://github.com/dailiuyi" target="_blank" rel="noopener noreferrer" className="footer-author-link" title="访问 GitHub">GitHub ↗</a>
+          </span>
+          <a href="#top" className="footer-top">回到顶部 ↑</a>
+        </div>
       </footer>
 
       {/* 右下角常驻悬浮药丸胶囊 */}
@@ -666,7 +675,12 @@ export default function Home() {
 
           {dialog.kind === "feedback" && (
             <form className="dialog-form" onSubmit={handleFeedbackSubmit}>
-              <p className="dialog-intro">MUC音协 · 器材增添、故障报修或排练建议</p>
+              <p className="dialog-intro">
+                <span>MUC音协 · 器材增添、故障报修或排练建议</span>
+                <span className="dialog-maintainer">
+                  由 <a href="https://github.com/dailiuyi" target="_blank" rel="noopener noreferrer" className="dialog-maintainer-link" title="前往 Elma 的 GitHub 主页">Elma</a> 维护
+                </span>
+              </p>
               <label className="form-field" htmlFor="feedback-contact">
                 <span>联系方式</span>
                 <input
@@ -705,6 +719,9 @@ export default function Home() {
               <div className="success-mark" aria-hidden="true">✓</div>
               <p className="success-message">反馈已成功送达！</p>
               <p className="save-code-note">已记录入排练室数据库，负责人与机器人会定期拉取并跟进处理。</p>
+              <p className="dialog-maintainer-note">
+                本系统由 <a href="https://github.com/dailiuyi" target="_blank" rel="noopener noreferrer" className="dialog-maintainer-link">Elma</a> 维护
+              </p>
               <button className="dialog-submit" type="button" onClick={closeDialog}>好的</button>
             </div>
           )}

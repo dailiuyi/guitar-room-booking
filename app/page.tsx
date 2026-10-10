@@ -440,34 +440,21 @@ export default function Home() {
       <div id="top" className="page-content">
         <section className="hero" aria-labelledby="page-title">
           <div className="hero-copy">
-            <p className="eyebrow"><span className="eyebrow-dot" /> 每日固定时段</p>
-            <h1 id="page-title">为下一段旋律，<br /><span>留出一小时。</span></h1>
-            <p className="hero-description">每日 08:00–21:00，每小时一个时段，同一时段仅开放一组预约。</p>
-            <a className="hero-anchor" href="#schedule">浏览本周排期 <span aria-hidden="true">↓</span></a>
-          </div>
-          <div className="hero-art" aria-hidden="true">
-            <div className="art-halo" />
-            <div className="art-note art-note-one">♪</div>
-            <div className="art-note art-note-two">♫</div>
-            <div className="guitar-illustration">
-              <span className="guitar-neck" />
-              <span className="guitar-head"><i /><i /><i /><i /></span>
-              <span className="guitar-body"><span className="guitar-sound-hole" /><span className="guitar-bridge" /></span>
-              <span className="guitar-string guitar-string-one" /><span className="guitar-string guitar-string-two" /><span className="guitar-string guitar-string-three" />
-            </div>
-            <span className="art-caption">早八点至晚九点 · 一起演奏</span>
+            <p className="eyebrow">STUDIO RESERVATION / 08:00 – 21:00</p>
+            <h1 id="page-title">排练室预约</h1>
+            <p className="hero-description">每日 13 个独立时段 · 仅限单组独占 · 实时同步排期</p>
           </div>
         </section>
 
         <section id="schedule" className="schedule-section" aria-labelledby="schedule-title">
           <div className="section-heading">
             <div>
-              <p className="eyebrow section-eyebrow">排期一览</p>
-              <h2 id="schedule-title">找到合适的一天</h2>
+              <p className="eyebrow">SCHEDULE / 本周时段</p>
+              <h2 id="schedule-title">时段排期</h2>
             </div>
             <div className="legend" aria-label="排期状态说明">
               <span><i className="legend-dot available-dot" />可预约</span>
-              <span><i className="legend-dot booked-dot" />已预约</span>
+              <span><i className="legend-dot booked-dot" />已占用</span>
               <span><i className="legend-dot ended-dot" />已结束</span>
             </div>
           </div>
@@ -488,48 +475,62 @@ export default function Home() {
 
             {loadError && (
               <div className="load-error" role="alert">
-                <div><strong>{hasLoaded ? "排期更新失败" : "排期暂时无法显示"}</strong><span>{loadError}</span></div>
+                <div><strong>{hasLoaded ? "排期刷新失败" : "排期加载失败"}</strong><span>{loadError}</span></div>
                 <button className="retry-button" type="button" onClick={retry}>重试</button>
               </div>
             )}
 
             {!hasLoaded && isLoading ? (
-              <div className="schedule-loading" role="status"><span className="loading-spinner" />正在加载排期…</div>
+              <div className="schedule-loading" role="status"><span className="loading-spinner" />加载排期中…</div>
             ) : !hasLoaded && loadError ? (
-              <div className="schedule-unavailable">连接恢复后，点击上方“重试”查看可预约时段。</div>
+              <div className="schedule-unavailable">暂无法获取排期，请检查网络或点击重试。</div>
             ) : (
               <>
                 <div className="date-tabs" role="group" aria-label="选择预约日期">
-                  {dates.map((date, index) => (
-                    <button key={date} type="button" className={`date-tab ${date === selectedDate ? "selected" : ""}`} aria-pressed={date === selectedDate} aria-label={formatDate(date, { month: "long", day: "numeric", weekday: "long" })} onClick={() => { setSelectedDate(date); setJumpDate(date); }}>
-                      <span className="day-name">{WEEKDAY_NAMES[index]}</span>
-                      <span className="day-number">{Number(date.slice(-2))}</span>
-                      <span className="date-tab-note">{date === schedule?.today ? "今天" : `${schedule?.bookings.filter((booking) => booking.date === date).length ?? 0} 个预约`}</span>
-                    </button>
-                  ))}
+                  {dates.map((date, index) => {
+                    const bookingCount = schedule?.bookings.filter((booking) => booking.date === date).length ?? 0;
+                    return (
+                      <button key={date} type="button" className={`date-tab ${date === selectedDate ? "selected" : ""}`} aria-pressed={date === selectedDate} aria-label={formatDate(date, { month: "long", day: "numeric", weekday: "long" })} onClick={() => { setSelectedDate(date); setJumpDate(date); }}>
+                        <span className="day-name">{WEEKDAY_NAMES[index]}</span>
+                        <span className="day-number">{Number(date.slice(-2))}</span>
+                        <span className="date-tab-note">{date === schedule?.today ? "今日" : `${bookingCount} 组`}</span>
+                      </button>
+                    );
+                  })}
                 </div>
-                <h3 className="daily-heading">{formatDate(selectedDate, { month: "long", day: "numeric", weekday: "long" })} <span>北京时间 · 每段 1 小时</span></h3>
+                <div className="daily-subheading">
+                  <h3 className="daily-heading">{formatDate(selectedDate, { month: "long", day: "numeric", weekday: "long" })}</h3>
+                  <span className="daily-note">13 个时段 · 每时段 60 分钟</span>
+                </div>
                 <div className="slot-grid" aria-label={`${selectedDate}小时排期`}>
                 {(schedule?.slots ?? SLOTS).map((slot) => {
                   const booking = bookingsBySlot.get(`${selectedDate}:${slot.start}`);
                   const ended = dateIsEnded(selectedDate, slot, schedule);
                   const status = ended ? "ended" : booking ? "booked" : "available";
-                  const statusText = ended ? "已结束" : booking ? "已预约" : "可预约";
+                  const statusText = ended ? "已结束" : booking ? "已占用" : "空闲";
                   return (
                     <article className={`day-card ${status}`} key={slot.start} aria-label={`${slot.start}–${slot.end}`}>
                       <div className="day-card-top">
                         <span className="hour-label">{slot.start}–{slot.end}</span>
+                        <div className="day-status"><i className="status-dot" /><span>{statusText}</span></div>
                       </div>
-                      <div className="slot-time"><span className="time-icon" aria-hidden="true">◷</span><span>1 小时</span></div>
-                      <div className="day-status"><i className="status-dot" /><span>{statusText}</span></div>
-                      {booking && <p className="booking-name" title={booking.name}>{booking.name}</p>}
+                      <div className="day-card-body">
+                        {booking ? (
+                          <p className="booking-name" title={booking.name}>
+                            <span className="booking-badge">占用</span>
+                            <span className="booking-owner">{booking.name}</span>
+                          </p>
+                        ) : (
+                          <p className="slot-idle-hint">{ended ? "该时段已过" : "时段开放预约"}</p>
+                        )}
+                      </div>
                       <div className="day-card-action">
                         {booking ? (
-                          <button type="button" className="text-action cancel-action" onClick={() => openCancellation(selectedDate, slot)} aria-label={`取消${selectedDate} ${slot.start}–${slot.end}的预约`}>取消此时段 <span aria-hidden="true">→</span></button>
+                          <button type="button" className="text-action cancel-action" onClick={() => openCancellation(selectedDate, slot)} aria-label={`取消${selectedDate} ${slot.start}–${slot.end}的预约`}>退订时段 <span aria-hidden="true">→</span></button>
                         ) : ended ? (
-                          <span className="ended-note">时段已结束</span>
+                          <span className="ended-note">—</span>
                         ) : (
-                          <button type="button" className="reserve-button" disabled={!hasLoaded || Boolean(loadError)} onClick={() => openBooking(selectedDate, slot)} aria-label={`预约${selectedDate} ${slot.start}–${slot.end}`}>预约时段 <span aria-hidden="true">↗</span></button>
+                          <button type="button" className="reserve-button" disabled={!hasLoaded || Boolean(loadError)} onClick={() => openBooking(selectedDate, slot)} aria-label={`预约${selectedDate} ${slot.start}–${slot.end}`}>立即预约 <span aria-hidden="true">↗</span></button>
                         )}
                       </div>
                     </article>
@@ -539,52 +540,55 @@ export default function Home() {
               </>
             )}
 
-            <div className="schedule-footnote"><span className="footnote-icon" aria-hidden="true">i</span><p>预约使用的姓名或乐队名将公开显示。取消码会保存在当前浏览器，请另行备份；换设备或清除浏览器数据后，忘记取消码可联系排练室管理员协助取消。</p></div>
+            <div className="schedule-footnote"><span className="footnote-icon" aria-hidden="true">i</span><p>预约名称将公开显示。凭 16 位取消码可自行退订；遗失取消码请联系排练室负责人。</p></div>
           </div>
         </section>
       </div>
 
-      <footer className="site-footer"><span><span className="footer-mark">♪</span> 每一次合奏，都从准时开始。</span><a href="#top">回到顶部 ↑</a></footer>
+      <footer className="site-footer">
+        <span className="footer-title">GUITAR STUDIO RESERVATION</span>
+        <span className="footer-meta">上海时区 (UTC+8) · 每日 08:00 – 21:00</span>
+        <a href="#top" className="footer-top">回到顶部 ↑</a>
+      </footer>
 
       {dialog && (
-        <DialogShell key={dialog.kind} title={dialog.kind === "booking" ? "预约排练室" : dialog.kind === "cancellation" ? "取消预约" : dialog.kind === "booked" ? "预约成功" : "预约已取消"} busy={isSubmitting} onClose={closeDialog}>
+        <DialogShell key={dialog.kind} title={dialog.kind === "booking" ? "预约时段" : dialog.kind === "cancellation" ? "取消预约" : dialog.kind === "booked" ? "预约已完成" : "已成功取消"} busy={isSubmitting} onClose={closeDialog}>
           {dialog.kind === "booking" && (
             <form className="dialog-form" onSubmit={handleBooking}>
               <p className="dialog-intro">{formatDate(dialog.date, { year: "numeric", month: "long", day: "numeric", weekday: "long" })} · {dialog.slot.start}–{dialog.slot.end}</p>
-              <label className="form-field" htmlFor="booking-name"><span>姓名或乐队名</span><input id="booking-name" type="text" autoComplete="name" autoFocus required maxLength={40} value={name} onChange={(event) => setName(event.target.value)} aria-describedby="booking-name-note public-name-note" /><span id="booking-name-note" className="field-hint">最多40个字。</span></label>
-              <label className="consent-check" htmlFor="public-name-confirmed"><input id="public-name-confirmed" type="checkbox" checked={publicNameConfirmed} onChange={(event) => setPublicNameConfirmed(event.target.checked)} /><span id="public-name-note">我确认姓名或乐队名将公开显示。</span></label>
+              <label className="form-field" htmlFor="booking-name"><span>姓名 / 乐队名</span><input id="booking-name" type="text" autoComplete="name" autoFocus required maxLength={40} placeholder="请输入姓名或乐队名称" value={name} onChange={(event) => setName(event.target.value)} aria-describedby="public-name-note" /></label>
+              <label className="consent-check" htmlFor="public-name-confirmed"><input id="public-name-confirmed" type="checkbox" checked={publicNameConfirmed} onChange={(event) => setPublicNameConfirmed(event.target.checked)} /><span id="public-name-note">确认公开展示此名称</span></label>
               {dialogError && <p className="dialog-error" role="alert">{dialogError}</p>}
               {bookingOutcomeUncertain && bookingCancellationCode && (
                 <div className="uncertain-code">
-                  <span className="code-label">本次尝试使用的取消码</span>
+                  <span className="code-label">生成的取消码</span>
                   <code className="cancellation-code">{bookingCancellationCode}</code>
-                  <button className="copy-button" type="button" onClick={() => void copyCancellationCode(bookingCancellationCode)}>复制取消码</button>
+                  <button className="copy-button" type="button" onClick={() => void copyCancellationCode(bookingCancellationCode)}>复制</button>
                   <p className="copy-message" aria-live="polite">{copyMessage}</p>
                 </div>
               )}
-              <button className="dialog-submit" type="submit" disabled={isSubmitting || !publicNameConfirmed}>{isSubmitting ? <><span className="button-spinner" />正在提交…</> : "确认预约"}</button>
+              <button className="dialog-submit" type="submit" disabled={isSubmitting || !publicNameConfirmed}>{isSubmitting ? <><span className="button-spinner" />提交中…</> : "确认预约"}</button>
             </form>
           )}
 
           {dialog.kind === "cancellation" && (
             <form className="dialog-form" onSubmit={handleCancellation}>
               <p className="dialog-intro">{formatDate(dialog.date, { year: "numeric", month: "long", day: "numeric", weekday: "long" })} · {dialog.slot.start}–{dialog.slot.end}</p>
-              <p className="cancellation-owner">预约人：{dialog.booking.name}</p>
-              <label className="consent-check cancellation-mode" htmlFor="admin-cancellation-mode"><input id="admin-cancellation-mode" type="checkbox" disabled={isSubmitting} checked={adminMode} onChange={(event) => { setAdminMode(event.target.checked); setAdminKey(""); setAdminConfirmed(false); setDialogError(""); }} /><span>管理员协助取消</span></label>
+              <p className="cancellation-owner">当前预约：<strong>{dialog.booking.name}</strong></p>
+              <label className="consent-check cancellation-mode" htmlFor="admin-cancellation-mode"><input id="admin-cancellation-mode" type="checkbox" disabled={isSubmitting} checked={adminMode} onChange={(event) => { setAdminMode(event.target.checked); setAdminKey(""); setAdminConfirmed(false); setDialogError(""); }} /><span>管理员协助模式</span></label>
               {adminMode ? (
                 <>
-                  <label className="form-field" htmlFor="admin-cancellation-key"><span>管理员密钥</span><input id="admin-cancellation-key" type="password" autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={256} required disabled={isSubmitting} value={adminKey} onChange={(event) => setAdminKey(event.target.value)} placeholder="仅由管理员输入通用密钥" /></label>
-                  <p className="field-hint">请先核实预约人身份。密钥仅用于本次操作，不会保存到浏览器。</p>
-                  <label className="consent-check" htmlFor="admin-cancellation-confirmed"><input id="admin-cancellation-confirmed" type="checkbox" disabled={isSubmitting} checked={adminConfirmed} onChange={(event) => setAdminConfirmed(event.target.checked)} /><span>我已核实，确认取消 {dialog.date} {dialog.slot.start}–{dialog.slot.end}「{dialog.booking.name}」的预约。</span></label>
+                  <label className="form-field" htmlFor="admin-cancellation-key"><span>管理员密钥</span><input id="admin-cancellation-key" type="password" autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={256} required disabled={isSubmitting} value={adminKey} onChange={(event) => setAdminKey(event.target.value)} placeholder="输入管理员密钥" /></label>
+                  <label className="consent-check" htmlFor="admin-cancellation-confirmed"><input id="admin-cancellation-confirmed" type="checkbox" disabled={isSubmitting} checked={adminConfirmed} onChange={(event) => setAdminConfirmed(event.target.checked)} /><span>已核实身份，确认取消预约</span></label>
                 </>
               ) : (
                 <>
-                  <label className="form-field" htmlFor="booking-cancellation-code"><span>取消码</span><input id="booking-cancellation-code" type="text" autoCapitalize="characters" autoComplete="off" autoFocus disabled={isSubmitting} value={cancellationCode} onChange={(event) => setCancellationCode(event.target.value)} placeholder="输入预约成功时显示的取消码" /></label>
-                  <p className="field-hint">{codeWasLoaded ? "已自动填入当前浏览器保存的取消码。" : "请输入这一天预约时收到的取消码。"} 忘记取消码请联系排练室管理员，核实后由管理员协助取消。</p>
+                  <label className="form-field" htmlFor="booking-cancellation-code"><span>取消码</span><input id="booking-cancellation-code" type="text" autoCapitalize="characters" autoComplete="off" autoFocus disabled={isSubmitting} value={cancellationCode} onChange={(event) => setCancellationCode(event.target.value)} placeholder="请输入 16 位取消码" /></label>
+                  <p className="field-hint">{codeWasLoaded ? "已从本机读取保存的取消码" : "请输入预约时获得的取消码"}</p>
                 </>
               )}
               {dialogError && <p className="dialog-error" role="alert">{dialogError}</p>}
-              <button className="dialog-submit" type="submit" disabled={isSubmitting || (adminMode && (!adminKey || !adminConfirmed))}>{isSubmitting ? <><span className="button-spinner" />正在提交…</> : "确认取消预约"}</button>
+              <button className="dialog-submit" type="submit" disabled={isSubmitting || (adminMode && (!adminKey || !adminConfirmed))}>{isSubmitting ? <><span className="button-spinner" />提交中…</> : "确认取消"}</button>
             </form>
           )}
 
@@ -592,17 +596,16 @@ export default function Home() {
             <div className="success-content">
               <p className="dialog-intro">{formatDate(dialog.date, { year: "numeric", month: "long", day: "numeric", weekday: "long" })} · {dialog.slot.start}–{dialog.slot.end}</p>
               <div className="success-mark" aria-hidden="true">✓</div>
-              <p className="success-message">预约人：{dialog.name}</p>
-              <p className="success-message">预约已提交，取消时需要使用下面的取消码。</p>
-              <div className="code-card"><span className="code-label">本次预约取消码</span><code className="cancellation-code">{dialog.cancellationCode}</code><button className="copy-button" type="button" onClick={() => void copyCancellationCode(dialog.cancellationCode)}>复制取消码</button></div>
-              <p className="save-code-note">{dialog.savedLocally ? "取消码已保存在当前浏览器，取消时会自动填入。请另行备份；换设备或清除浏览器数据后将无法读取。" : "当前浏览器无法保存取消码，请手动复制并妥善保管。"} 忘记取消码可联系排练室管理员协助取消。</p>
+              <p className="success-message">预约已成功（{dialog.name}）</p>
+              <div className="code-card"><span className="code-label">取消凭证码</span><code className="cancellation-code">{dialog.cancellationCode}</code><button className="copy-button" type="button" onClick={() => void copyCancellationCode(dialog.cancellationCode)}>复制凭证码</button></div>
+              <p className="save-code-note">{dialog.savedLocally ? "凭证码已在此浏览器暂存。若更换设备请提前留存。" : "请妥善复制并保存此凭证码。"}</p>
               <p className="copy-message" aria-live="polite">{copyMessage}</p>
-              <button className="dialog-submit" type="button" onClick={closeDialog}>我已保存</button>
+              <button className="dialog-submit" type="button" onClick={closeDialog}>完成</button>
             </div>
           )}
 
           {dialog.kind === "cancelled" && (
-            <div className="success-content"><p className="dialog-intro">{formatDate(dialog.date, { year: "numeric", month: "long", day: "numeric", weekday: "long" })} · {dialog.slot.start}–{dialog.slot.end}</p><div className="success-mark" aria-hidden="true">✓</div><p className="success-message">该时段预约已取消。</p><button className="dialog-submit" type="button" onClick={closeDialog}>完成</button></div>
+            <div className="success-content"><p className="dialog-intro">{formatDate(dialog.date, { year: "numeric", month: "long", day: "numeric", weekday: "long" })} · {dialog.slot.start}–{dialog.slot.end}</p><div className="success-mark" aria-hidden="true">✓</div><p className="success-message">预约已成功取消</p><button className="dialog-submit" type="button" onClick={closeDialog}>完成</button></div>
           )}
         </DialogShell>
       )}

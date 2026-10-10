@@ -18,7 +18,9 @@ type DialogState =
   | { kind: "booking"; date: string; slot: Slot }
   | { kind: "cancellation"; date: string; slot: Slot; booking: Booking }
   | { kind: "booked"; date: string; slot: Slot; name: string; cancellationCode: string; savedLocally: boolean }
-  | { kind: "cancelled"; date: string; slot: Slot };
+  | { kind: "cancelled"; date: string; slot: Slot }
+  | { kind: "feedback" }
+  | { kind: "feedback-success" };
 
 const BOOKING_TIMEZONE = "Asia/Shanghai";
 const WEEKDAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
@@ -177,6 +179,8 @@ export default function Home() {
   const [adminConfirmed, setAdminConfirmed] = useState(false);
   const [codeWasLoaded, setCodeWasLoaded] = useState(false);
   const [copyMessage, setCopyMessage] = useState("");
+  const [feedbackContact, setFeedbackContact] = useState("");
+  const [feedbackContent, setFeedbackContent] = useState("");
   const hasLoadedRef = useRef(false);
   const lastLoadedWeek = useRef("");
   const serverDateAligned = useRef(false);
@@ -265,6 +269,48 @@ export default function Home() {
     setDialogError("");
     setCopyMessage("");
   }, [isSubmitting]);
+
+  const openFeedback = () => {
+    setFeedbackContact("");
+    setFeedbackContent("");
+    setDialogError("");
+    setDialog({ kind: "feedback" });
+  };
+
+  const handleFeedbackSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!feedbackContact.trim()) {
+      setDialogError("请留下联系方式（微信/手机号等），方便与您联系。");
+      return;
+    }
+    if (!feedbackContent.trim()) {
+      setDialogError("请填写建议或需求内容。");
+      return;
+    }
+    setIsSubmitting(true);
+    setDialogError("");
+    try {
+      const response = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contact: feedbackContact.trim(),
+          content: feedbackContent.trim(),
+        }),
+      });
+      const body: unknown = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(apiErrorMessage(body, "提交失败，请稍后重试。"));
+      setDialog({ kind: "feedback-success" });
+    } catch (error) {
+      setDialogError(error instanceof TypeError
+        ? "无法连接服务器，请检查网络后重试。"
+        : error instanceof Error
+          ? error.message
+          : "提交失败，请稍后重试。");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const openBooking = (date: string, slot: Slot) => {
     setSelectedDate(date);
@@ -552,8 +598,21 @@ export default function Home() {
         <a href="#top" className="footer-top">回到顶部 ↑</a>
       </footer>
 
+      {/* 右下角常驻悬浮药丸胶囊 */}
+      <aside className="floating-feedback-bar" aria-label="意见与需求反馈">
+        <button
+          type="button"
+          className="feedback-pill-btn"
+          onClick={openFeedback}
+          aria-label="打开意见与需求反馈弹窗"
+        >
+          <span className="feedback-pill-icon" aria-hidden="true">✎</span>
+          <span className="feedback-pill-text">提需求 / 意见反馈</span>
+        </button>
+      </aside>
+
       {dialog && (
-        <DialogShell key={dialog.kind} title={dialog.kind === "booking" ? "预约时段" : dialog.kind === "cancellation" ? "取消预约" : dialog.kind === "booked" ? "预约已完成" : "已成功取消"} busy={isSubmitting} onClose={closeDialog}>
+        <DialogShell key={dialog.kind} title={dialog.kind === "booking" ? "预约时段" : dialog.kind === "cancellation" ? "取消预约" : dialog.kind === "booked" ? "预约已完成" : dialog.kind === "feedback" ? "需求与意见反馈" : dialog.kind === "feedback-success" ? "反馈已送达" : "已成功取消"} busy={isSubmitting} onClose={closeDialog}>
           {dialog.kind === "booking" && (
             <form className="dialog-form" onSubmit={handleBooking}>
               <p className="dialog-intro">{formatDate(dialog.date, { year: "numeric", month: "long", day: "numeric", weekday: "long" })} · {dialog.slot.start}–{dialog.slot.end}</p>
@@ -602,6 +661,51 @@ export default function Home() {
               <p className="save-code-note">{dialog.savedLocally ? "凭证码已在此浏览器暂存。若更换设备请提前留存。" : "请妥善复制并保存此凭证码。"}</p>
               <p className="copy-message" aria-live="polite">{copyMessage}</p>
               <button className="dialog-submit" type="button" onClick={closeDialog}>完成</button>
+            </div>
+          )}
+
+          {dialog.kind === "feedback" && (
+            <form className="dialog-form" onSubmit={handleFeedbackSubmit}>
+              <p className="dialog-intro">MUC音协 · 器材增添、故障报修或排练建议</p>
+              <label className="form-field" htmlFor="feedback-contact">
+                <span>联系方式</span>
+                <input
+                  id="feedback-contact"
+                  type="text"
+                  autoFocus
+                  required
+                  maxLength={50}
+                  placeholder="微信 / 手机号 / 姓名，方便跟进"
+                  value={feedbackContact}
+                  onChange={(event) => setFeedbackContact(event.target.value)}
+                />
+              </label>
+              <label className="form-field" htmlFor="feedback-content" style={{ marginTop: 14 }}>
+                <span>需求与意见</span>
+                <textarea
+                  id="feedback-content"
+                  required
+                  rows={4}
+                  maxLength={500}
+                  placeholder="请详细描述您的需求、器材建议或遇到的问题…"
+                  value={feedbackContent}
+                  onChange={(event) => setFeedbackContent(event.target.value)}
+                  className="feedback-textarea"
+                />
+              </label>
+              {dialogError && <p className="dialog-error" role="alert">{dialogError}</p>}
+              <button className="dialog-submit" type="submit" disabled={isSubmitting}>
+                {isSubmitting ? <><span className="button-spinner" />提交中…</> : "提交反馈"}
+              </button>
+            </form>
+          )}
+
+          {dialog.kind === "feedback-success" && (
+            <div className="success-content">
+              <div className="success-mark" aria-hidden="true">✓</div>
+              <p className="success-message">反馈已成功送达！</p>
+              <p className="save-code-note">已记录入排练室数据库，负责人与机器人会定期拉取并跟进处理。</p>
+              <button className="dialog-submit" type="button" onClick={closeDialog}>好的</button>
             </div>
           )}
 

@@ -24,6 +24,12 @@ export function initializeBookingSchema(connection: DatabaseSync) {
     }
     connection.exec(`CREATE TABLE IF NOT EXISTS request_limits (
       key TEXT PRIMARY KEY, window_start INTEGER NOT NULL, count INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS feedback (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      contact TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL
     ); COMMIT;`);
   } catch (error) {
     connection.exec("ROLLBACK;");

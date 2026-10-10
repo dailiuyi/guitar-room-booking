@@ -776,18 +776,27 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
   font-weight: 600;
   color: var(--strong);
 }
-.form-field input {
+.form-field input, .feedback-textarea {
   width: 100%;
-  height: 38px;
-  padding: 0 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg);
   color: var(--text);
   font-size: 13px;
+  font-family: inherit;
   transition: all .15s ease;
 }
-.form-field input:focus-visible {
+.form-field input {
+  height: 38px;
+  padding: 0 12px;
+}
+.feedback-textarea {
+  padding: 10px 12px;
+  resize: vertical;
+  min-height: 85px;
+  line-height: 1.6;
+}
+.form-field input:focus-visible, .feedback-textarea:focus-visible {
   border-color: var(--accent-deep);
   background: var(--surface);
 }
@@ -812,6 +821,43 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 .cancellation-owner strong { color: var(--strong); }
 .cancellation-mode { margin-bottom: 14px; }
 .dialog-error { margin: 12px 0 0; color: #ad3d2f; font-size: 12px; }
+
+/* 右下角常驻悬浮反馈胶囊 */
+.floating-feedback-bar {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 40;
+}
+.feedback-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-strong);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  color: var(--strong);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 26px rgba(18, 30, 24, 0.12);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: all .2s var(--ease);
+}
+.feedback-pill-btn:hover {
+  background: var(--surface);
+  border-color: var(--accent-deep);
+  color: var(--accent-deep);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(18, 30, 24, 0.18);
+}
+.feedback-pill-icon {
+  font-size: 14px;
+  color: var(--accent-deep);
+}
 
 .dialog-submit {
   width: 100%;
@@ -968,6 +1014,17 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
   .schedule-footnote { font-size: 11px; margin-top: 16px; padding-top: 12px; }
   .dialog-content { padding: 20px; }
   .footer-meta { display: none; }
+
+  /* 移动端悬浮胶囊微调 */
+  .floating-feedback-bar {
+    right: 16px;
+    bottom: 16px;
+  }
+  .feedback-pill-btn {
+    height: 36px;
+    padding: 0 13px;
+    font-size: 12px;
+  }
 }
 
 @media (max-width: 400px) {

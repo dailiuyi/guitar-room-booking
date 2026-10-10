@@ -430,9 +430,9 @@ export default function Home() {
   return (
     <main className="page-shell">
       <header className="site-header">
-        <a className="brand" href="#top" aria-label="排练室预约首页">
+        <a className="brand" href="#top" aria-label="MUC音协 排练室预约首页">
           <span className="brand-icon"><GuitarMark /></span>
-          <span className="brand-name">排练室预约</span>
+          <span className="brand-name">MUC音协 · 排练室</span>
         </a>
         <a className="header-link" href="#schedule">查看排期 <span aria-hidden="true">↘</span></a>
       </header>
@@ -440,8 +440,9 @@ export default function Home() {
       <div id="top" className="page-content">
         <section className="hero" aria-labelledby="page-title">
           <div className="hero-copy">
-            <p className="eyebrow">STUDIO RESERVATION / 08:00 – 21:00</p>
+            <p className="eyebrow">MUC MUSIC ASSOCIATION / 排练室预约</p>
             <h1 id="page-title">排练室预约</h1>
+            <p className="hero-slogan">民谣诗意 · 热血摇滚</p>
             <p className="hero-description">每日 13 个独立时段 · 仅限单组独占 · 实时同步排期</p>
           </div>
         </section>
@@ -546,8 +547,8 @@ export default function Home() {
       </div>
 
       <footer className="site-footer">
-        <span className="footer-title">GUITAR STUDIO RESERVATION</span>
-        <span className="footer-meta">上海时区 (UTC+8) · 每日 08:00 – 21:00</span>
+        <span className="footer-title">MUC MUSIC ASSOCIATION</span>
+        <span className="footer-meta">民谣诗意 · 热血摇滚</span>
         <a href="#top" className="footer-top">回到顶部 ↑</a>
       </footer>
 

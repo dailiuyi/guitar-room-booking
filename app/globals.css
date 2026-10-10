@@ -271,17 +271,24 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
   gap: 8px;
 }
 .hero h1 {
-  margin: 0 0 12px;
+  margin: 0 0 6px;
   color: var(--strong);
   font-size: clamp(28px, 4.2vw, 42px);
   font-weight: 650;
   letter-spacing: -0.04em;
   line-height: 1.15;
 }
+.hero-slogan {
+  margin: 0 0 10px;
+  color: var(--accent-deep);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
 .hero-description {
   margin: 0;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.6;
 }
 

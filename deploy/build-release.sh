@@ -1,7 +1,10 @@
 #!/bin/sh
 set -eu
 umask 022
-task_version=20261010-v1
+task_version=${1:-20261010-v1}
+case "$task_version" in
+    ''|*[!a-zA-Z0-9-]*) echo 'Invalid release version.' >&2; exit 2 ;;
+esac
 task_source=/opt/guitar-room/source/$task_version
 task_release=/opt/guitar-room/releases/$task_version
 task_archive=/tmp/guitar-room-source-$task_version.tar.gz

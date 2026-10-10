@@ -1,4 +1,11 @@
-export const SLOT = { start: "20:00", end: "21:00" } as const;
+export const SLOTS = Array.from({ length: 13 }, (_, index) => ({
+  start: `${String(index + 8).padStart(2, "0")}:00`,
+  end: `${String(index + 9).padStart(2, "0")}:00`,
+}));
+export type Slot = (typeof SLOTS)[number];
+export function bookingSlot(value: unknown) {
+  return SLOTS.find((slot) => slot.start === value) ?? null;
+}
 export const TIMEZONE = "Asia/Shanghai";
 
 export function shanghaiClock(now = new Date()) {
@@ -21,9 +28,11 @@ export function validDate(value: unknown): value is string {
   return Number.isFinite(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === value;
 }
 
-export function slotHasEnded(date: string, now = new Date()) {
+export function slotHasEnded(date: string, slotStart: string, now = new Date()) {
+  const slot = bookingSlot(slotStart);
+  if (!slot) return true;
   const clock = shanghaiClock(now);
-  return date < clock.today || (date === clock.today && clock.time >= SLOT.end);
+  return date < clock.today || (date === clock.today && clock.time >= slot.end);
 }
 
 export function bookingName(value: unknown) {
@@ -52,6 +61,7 @@ export async function digest(value: string) {
   return Array.from(new Uint8Array(result), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-export async function cancellationDigest(date: string, code: string) {
-  return digest(`cancel-v1:${date}:${code}`);
+export async function cancellationDigest(date: string, code: string, slotStart: string = "20:00") {
+  // Retain legacy 20:00 codes when migrating existing reservations.
+  return digest(slotStart === "20:00" ? `cancel-v1:${date}:${code}` : `cancel-v2:${date}:${slotStart}:${code}`);
 }

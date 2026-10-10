@@ -16,6 +16,7 @@ Environment=HOSTNAME=127.0.0.1
 Environment=DATABASE_PATH=/var/lib/guitar-room/bookings.sqlite
 Environment=PUBLIC_ORIGIN=https://guitar.elma-gohan.xyz
 Environment=TRUST_PROXY=1
+EnvironmentFile=-/etc/guitar-room.env
 ExecStart=/usr/bin/node /opt/guitar-room/current/server.js
 Restart=on-failure
 RestartSec=3

@@ -8,7 +8,7 @@
     "build": "next build --webpack",
     "dev": "next dev --hostname 127.0.0.1 --port 3100",
     "start": "next start --hostname 127.0.0.1 --port 3100",
-    "test": "node --experimental-strip-types --test tests/booking-rules.test.mjs"
+    "test": "node --experimental-strip-types --test tests/booking-rules.test.mjs tests/booking-schema.test.mjs tests/admin-key.test.mjs tests/local-cancellation-codes.test.mjs"
   },
   "dependencies": {
     "next": "16.3.4",

@@ -223,6 +223,16 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .date-jump input { width: 112px; min-width: 0; padding: 5px 0; border: 0; background: transparent; color: var(--ink); font-size: 11px; cursor: pointer; }
 .date-jump input:focus-visible { outline-offset: 1px; }
 .week-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; }
+.date-tabs { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.date-tab { min-width: 0; padding: 13px 6px; display: flex; flex-direction: column; align-items: center; gap: 9px; border: 1px solid var(--line); border-radius: 12px; background: #fffdf8; color: var(--ink); cursor: pointer; }
+.date-tab.selected { border-color: #819985; background: #e8eee4; box-shadow: 0 0 0 2px rgb(114 139 116 / 12%); }
+.date-tab-note { color: #59665d; font-size: 10px; white-space: nowrap; }
+.daily-heading { margin: 22px 0 14px; display: flex; align-items: baseline; flex-wrap: wrap; gap: 12px; color: var(--ink); font-size: 16px; }
+.daily-heading span { color: #59665d; font-size: 11px; font-weight: 400; }
+.slot-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.slot-grid .day-card { min-height: 155px; }
+.slot-grid .day-card-top { min-height: 25px; }
+.hour-label { color: var(--ink); font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .day-card { min-width: 0; min-height: 208px; padding: 13px 12px 12px; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 15px; background: #fffdf8; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
 .day-card.selected { border-color: #a2b19f; box-shadow: 0 0 0 2px rgb(114 139 116 / 12%); }
 .day-card.available:hover { transform: translateY(-2px); border-color: #aab9a7; box-shadow: 0 9px 20px rgb(47 66 48 / 7%); }
@@ -277,6 +287,8 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .consent-check { margin-top: 14px; display: flex; align-items: flex-start; gap: 9px; color: #65746a; font-size: 11px; line-height: 1.55; cursor: pointer; }
 .consent-check input { width: 16px; height: 16px; margin: 1px 0 0; flex: 0 0 auto; accent-color: var(--ink); }
 .field-hint { margin: 8px 0 0; color: #59665d; font-size: 11px; line-height: 1.5; }
+.cancellation-owner { margin: -10px 0 8px; color: #425d50; font-size: 13px; overflow-wrap: anywhere; }
+.cancellation-mode { margin: 0 0 16px; }
 .dialog-error { margin: 12px 0 0; color: #a44f37; font-size: 12px; line-height: 1.5; }
 .dialog-submit { width: 100%; min-height: 44px; margin-top: 22px; padding: 0 15px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; border: 0; border-radius: 11px; background: var(--ink); color: #fffdf7; font-size: 13px; font-weight: 700; cursor: pointer; transition: background .18s ease, opacity .18s ease; }
 .dialog-submit:hover:not(:disabled) { background: #2d5145; } .dialog-submit:disabled { background: #667368; opacity: 1; cursor: not-allowed; }
@@ -322,6 +334,14 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .date-jump { min-height: 38px; justify-content: flex-start; }
   .date-jump input { width: auto; flex: 1; text-align: right; }
   .week-grid { grid-template-columns: 1fr; gap: 8px; }
+  .date-tabs { padding: 3px; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+  .date-tab { padding: 10px 3px; }
+  .date-tab-note { font-size: 8px; }
+  .daily-heading { margin-top: 18px; font-size: 14px; }
+  .slot-grid { grid-template-columns: 1fr; gap: 8px; }
+  .slot-grid .day-card { min-height: 0; }
+  .slot-grid .day-card-top { min-height: 0; }
+  .hour-label { font-size: 14px; }
   .day-card { min-height: 0; padding: 11px 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; row-gap: 3px; border-radius: 13px; }
   .day-card-top { min-height: 0; grid-column: 1; grid-row: 1; align-items: center; }
   .day-date-block { align-items: center; gap: 8px; }

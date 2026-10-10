@@ -2,20 +2,23 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
+import { readLocalCode, removeLocalCode, saveLocalCode } from "./lib/local-cancellation-codes";
+import { SLOTS } from "./lib/booking-rules";
+import type { Slot } from "./lib/booking-rules";
 
-type Booking = { date: string; name: string; createdAt: string };
+type Booking = { date: string; slotStart: string; name: string; createdAt: string };
 type Schedule = {
   today: string;
   now: string;
   timezone: string;
-  slot: { start: string; end: string };
+  slots: Slot[];
   bookings: Booking[];
 };
 type DialogState =
-  | { kind: "booking"; date: string }
-  | { kind: "cancellation"; date: string }
-  | { kind: "booked"; date: string; name: string; cancellationCode: string }
-  | { kind: "cancelled"; date: string };
+  | { kind: "booking"; date: string; slot: Slot }
+  | { kind: "cancellation"; date: string; slot: Slot; booking: Booking }
+  | { kind: "booked"; date: string; slot: Slot; name: string; cancellationCode: string; savedLocally: boolean }
+  | { kind: "cancelled"; date: string; slot: Slot };
 
 const BOOKING_TIMEZONE = "Asia/Shanghai";
 const WEEKDAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
@@ -69,12 +72,12 @@ function getTimeInTimezone(iso: string, timezone: string) {
   return part("hour") * 60 + part("minute");
 }
 
-function dateIsEnded(date: string, schedule: Schedule | null) {
+function dateIsEnded(date: string, slot: Slot, schedule: Schedule | null) {
   if (!schedule) return false;
   if (date < schedule.today) return true;
   if (date > schedule.today) return false;
   const nowMinutes = getTimeInTimezone(schedule.now, schedule.timezone || BOOKING_TIMEZONE);
-  const [endHour, endMinute] = schedule.slot.end.split(":").map(Number);
+  const [endHour, endMinute] = slot.end.split(":").map(Number);
   return nowMinutes !== null && nowMinutes >= endHour * 60 + endMinute;
 }
 
@@ -169,15 +172,19 @@ export default function Home() {
   const [bookingCancellationCode, setBookingCancellationCode] = useState("");
   const [bookingOutcomeUncertain, setBookingOutcomeUncertain] = useState(false);
   const [cancellationCode, setCancellationCode] = useState("");
+  const [adminMode, setAdminMode] = useState(false);
+  const [adminKey, setAdminKey] = useState("");
+  const [adminConfirmed, setAdminConfirmed] = useState(false);
+  const [codeWasLoaded, setCodeWasLoaded] = useState(false);
   const [copyMessage, setCopyMessage] = useState("");
   const hasLoadedRef = useRef(false);
   const lastLoadedWeek = useRef("");
   const serverDateAligned = useRef(false);
   const bookingCancellationCodeRef = useRef("");
   const dates = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)), [weekStart]);
-  const bookingsByDate = useMemo(() => {
+  const bookingsBySlot = useMemo(() => {
     const lookup = new Map<string, Booking>();
-    for (const booking of schedule?.bookings ?? []) lookup.set(booking.date, booking);
+    for (const booking of schedule?.bookings ?? []) lookup.set(`${booking.date}:${booking.slotStart}`, booking);
     return lookup;
   }, [schedule]);
 
@@ -202,7 +209,7 @@ export default function Home() {
         const body: unknown = await response.json().catch(() => null);
         if (!response.ok) throw new Error(apiErrorMessage(body, "预约排期暂时无法加载，请点击重试。"));
         const nextSchedule = body as Schedule;
-        if (!nextSchedule || typeof nextSchedule.today !== "string" || !Array.isArray(nextSchedule.bookings)) {
+        if (!nextSchedule || typeof nextSchedule.today !== "string" || !Array.isArray(nextSchedule.bookings) || !Array.isArray(nextSchedule.slots)) {
           throw new Error("预约排期数据格式异常，请点击重试。");
         }
         if (!active) return;
@@ -252,11 +259,14 @@ export default function Home() {
   const closeDialog = useCallback(() => {
     if (isSubmitting) return;
     setDialog(null);
+    setAdminKey("");
+    setAdminConfirmed(false);
+    setCancellationCode("");
     setDialogError("");
     setCopyMessage("");
   }, [isSubmitting]);
 
-  const openBooking = (date: string) => {
+  const openBooking = (date: string, slot: Slot) => {
     setSelectedDate(date);
     setName("");
     setPublicNameConfirmed(false);
@@ -265,14 +275,21 @@ export default function Home() {
     setBookingOutcomeUncertain(false);
     setDialogError("");
     setCopyMessage("");
-    setDialog({ kind: "booking", date });
+    setDialog({ kind: "booking", date, slot });
   };
 
-  const openCancellation = (date: string) => {
+  const openCancellation = (date: string, slot: Slot) => {
+    const booking = bookingsBySlot.get(`${date}:${slot.start}`);
+    if (!booking) return;
     setSelectedDate(date);
-    setCancellationCode("");
+    const savedCode = readLocalCode(date, slot.start, booking.createdAt);
+    setCancellationCode(savedCode);
+    setCodeWasLoaded(Boolean(savedCode));
+    setAdminMode(false);
+    setAdminKey("");
+    setAdminConfirmed(false);
     setDialogError("");
-    setDialog({ kind: "cancellation", date });
+    setDialog({ kind: "cancellation", date, slot, booking });
   };
 
   const handleBooking = async (event: FormEvent<HTMLFormElement>) => {
@@ -299,11 +316,13 @@ export default function Home() {
     }
     setDialogError("");
     setIsSubmitting(true);
+    // Preserve the code even if the server accepts a booking but its response is lost.
+    saveLocalCode(dialog.date, dialog.slot.start, code, null);
     try {
       const response = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: dialog.date, name: name.trim(), cancellationCode: code }),
+        body: JSON.stringify({ date: dialog.date, slotStart: dialog.slot.start, name: name.trim(), cancellationCode: code }),
       });
       const body: unknown = await response.json().catch(() => null);
       if (!response.ok) {
@@ -311,6 +330,7 @@ export default function Home() {
           setBookingOutcomeUncertain(true);
           setDialogError("预约结果未能确认，请查看排期。若预约已生效，可以用下面的取消码取消。");
         } else {
+          removeLocalCode(dialog.date, dialog.slot.start, code);
           setDialogError(apiErrorMessage(body, "预约未能完成，请稍后重试。"));
         }
         setRefreshKey((value) => value + 1);
@@ -318,13 +338,17 @@ export default function Home() {
       }
       if (!body || typeof body !== "object" || !("cancellationCode" in body) || typeof body.cancellationCode !== "string" ||
         !("booking" in body) || !body.booking || typeof body.booking !== "object" ||
-        !("name" in body.booking) || typeof body.booking.name !== "string") {
+        !("name" in body.booking) || typeof body.booking.name !== "string" ||
+        !("createdAt" in body.booking) || typeof body.booking.createdAt !== "string" ||
+        !("date" in body.booking) || body.booking.date !== dialog.date ||
+        !("slotStart" in body.booking) || body.booking.slotStart !== dialog.slot.start) {
         setBookingOutcomeUncertain(true);
         setDialogError("预约结果未能确认，请查看排期。若预约已生效，可以用下面的取消码取消。");
         setRefreshKey((value) => value + 1);
         return;
       }
-      setDialog({ kind: "booked", date: dialog.date, name: body.booking.name, cancellationCode: body.cancellationCode });
+      const savedLocally = saveLocalCode(dialog.date, dialog.slot.start, body.cancellationCode, body.booking.createdAt);
+      setDialog({ kind: "booked", date: dialog.date, slot: dialog.slot, name: body.booking.name, cancellationCode: body.cancellationCode, savedLocally });
       setRefreshKey((value) => value + 1);
     } catch (error) {
       setBookingOutcomeUncertain(true);
@@ -338,7 +362,11 @@ export default function Home() {
   const handleCancellation = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!dialog || dialog.kind !== "cancellation") return;
-    if (!cancellationCode.trim()) {
+    if (adminMode && (!adminKey || !adminConfirmed)) {
+      setDialogError("请输入管理员密钥，并确认已核实预约人和日期。");
+      return;
+    }
+    if (!adminMode && !cancellationCode.trim()) {
       setDialogError("请输入预约时收到的取消码。");
       return;
     }
@@ -348,11 +376,16 @@ export default function Home() {
       const response = await fetch("/api/bookings", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: dialog.date, cancellationCode: cancellationCode.trim() }),
+        body: JSON.stringify(adminMode
+          ? { date: dialog.date, slotStart: dialog.slot.start, adminKey, expectedCreatedAt: dialog.booking.createdAt, expectedName: dialog.booking.name }
+          : { date: dialog.date, slotStart: dialog.slot.start, cancellationCode: cancellationCode.trim() }),
       });
       const body: unknown = await response.json().catch(() => null);
       if (!response.ok) throw new Error(apiErrorMessage(body, "取消未能完成，请检查取消码后重试。"));
-      setDialog({ kind: "cancelled", date: dialog.date });
+      removeLocalCode(dialog.date, dialog.slot.start);
+      setAdminKey("");
+      setCancellationCode("");
+      setDialog({ kind: "cancelled", date: dialog.date, slot: dialog.slot });
       setRefreshKey((value) => value + 1);
     } catch (error) {
       setDialogError(error instanceof TypeError
@@ -409,7 +442,7 @@ export default function Home() {
           <div className="hero-copy">
             <p className="eyebrow"><span className="eyebrow-dot" /> 每日固定时段</p>
             <h1 id="page-title">为下一段旋律，<br /><span>留出一小时。</span></h1>
-            <p className="hero-description">每日晚上 20:00–21:00，同一时段仅开放一组预约。</p>
+            <p className="hero-description">每日 08:00–21:00，每小时一个时段，同一时段仅开放一组预约。</p>
             <a className="hero-anchor" href="#schedule">浏览本周排期 <span aria-hidden="true">↓</span></a>
           </div>
           <div className="hero-art" aria-hidden="true">
@@ -422,7 +455,7 @@ export default function Home() {
               <span className="guitar-body"><span className="guitar-sound-hole" /><span className="guitar-bridge" /></span>
               <span className="guitar-string guitar-string-one" /><span className="guitar-string guitar-string-two" /><span className="guitar-string guitar-string-three" />
             </div>
-            <span className="art-caption">晚八点 · 一小时 · 一起演奏</span>
+            <span className="art-caption">早八点至晚九点 · 一起演奏</span>
           </div>
         </section>
 
@@ -465,38 +498,48 @@ export default function Home() {
             ) : !hasLoaded && loadError ? (
               <div className="schedule-unavailable">连接恢复后，点击上方“重试”查看可预约时段。</div>
             ) : (
-              <div className="week-grid" aria-label={`${weekLabel}排期`}>
-                {dates.map((date, index) => {
-                  const booking = bookingsByDate.get(date);
-                  const ended = dateIsEnded(date, schedule);
-                  const today = date === schedule?.today;
+              <>
+                <div className="date-tabs" role="group" aria-label="选择预约日期">
+                  {dates.map((date, index) => (
+                    <button key={date} type="button" className={`date-tab ${date === selectedDate ? "selected" : ""}`} aria-pressed={date === selectedDate} aria-label={formatDate(date, { month: "long", day: "numeric", weekday: "long" })} onClick={() => { setSelectedDate(date); setJumpDate(date); }}>
+                      <span className="day-name">{WEEKDAY_NAMES[index]}</span>
+                      <span className="day-number">{Number(date.slice(-2))}</span>
+                      <span className="date-tab-note">{date === schedule?.today ? "今天" : `${schedule?.bookings.filter((booking) => booking.date === date).length ?? 0} 个预约`}</span>
+                    </button>
+                  ))}
+                </div>
+                <h3 className="daily-heading">{formatDate(selectedDate, { month: "long", day: "numeric", weekday: "long" })} <span>北京时间 · 每段 1 小时</span></h3>
+                <div className="slot-grid" aria-label={`${selectedDate}小时排期`}>
+                {(schedule?.slots ?? SLOTS).map((slot) => {
+                  const booking = bookingsBySlot.get(`${selectedDate}:${slot.start}`);
+                  const ended = dateIsEnded(selectedDate, slot, schedule);
                   const status = ended ? "ended" : booking ? "booked" : "available";
                   const statusText = ended ? "已结束" : booking ? "已预约" : "可预约";
                   return (
-                    <article className={`day-card ${status} ${date === selectedDate ? "selected" : ""}`} key={date}>
+                    <article className={`day-card ${status}`} key={slot.start} aria-label={`${slot.start}–${slot.end}`}>
                       <div className="day-card-top">
-                        <div className="day-date-block"><span className="day-name">{WEEKDAY_NAMES[index]}</span><span className="day-number">{formatDate(date, { day: "numeric" })}</span></div>
-                        {today && <span className="today-badge">今天</span>}
+                        <span className="hour-label">{slot.start}–{slot.end}</span>
                       </div>
-                      <div className="slot-time"><span className="time-icon" aria-hidden="true">◷</span><span>{schedule?.slot.start ?? "20:00"}–{schedule?.slot.end ?? "21:00"}</span></div>
+                      <div className="slot-time"><span className="time-icon" aria-hidden="true">◷</span><span>1 小时</span></div>
                       <div className="day-status"><i className="status-dot" /><span>{statusText}</span></div>
                       {booking && <p className="booking-name" title={booking.name}>{booking.name}</p>}
                       <div className="day-card-action">
                         {booking ? (
-                          <button type="button" className="text-action cancel-action" onClick={() => openCancellation(date)} aria-label={`取消${formatDate(date, { month: "long", day: "numeric" })}的预约`}>输入取消码取消 <span aria-hidden="true">→</span></button>
+                          <button type="button" className="text-action cancel-action" onClick={() => openCancellation(selectedDate, slot)} aria-label={`取消${selectedDate} ${slot.start}–${slot.end}的预约`}>取消此时段 <span aria-hidden="true">→</span></button>
                         ) : ended ? (
                           <span className="ended-note">时段已结束</span>
                         ) : (
-                          <button type="button" className="reserve-button" disabled={!hasLoaded || Boolean(loadError)} onClick={() => openBooking(date)}>预约时段 <span aria-hidden="true">↗</span></button>
+                          <button type="button" className="reserve-button" disabled={!hasLoaded || Boolean(loadError)} onClick={() => openBooking(selectedDate, slot)} aria-label={`预约${selectedDate} ${slot.start}–${slot.end}`}>预约时段 <span aria-hidden="true">↗</span></button>
                         )}
                       </div>
                     </article>
                   );
                 })}
-              </div>
+                </div>
+              </>
             )}
 
-            <div className="schedule-footnote"><span className="footnote-icon" aria-hidden="true">i</span><p>预约使用的姓名或乐队名将公开显示。预约成功后请保存取消码；关闭成功提示后无法再次查看。</p></div>
+            <div className="schedule-footnote"><span className="footnote-icon" aria-hidden="true">i</span><p>预约使用的姓名或乐队名将公开显示。取消码会保存在当前浏览器，请另行备份；换设备或清除浏览器数据后，忘记取消码可联系排练室管理员协助取消。</p></div>
           </div>
         </section>
       </div>
@@ -507,7 +550,7 @@ export default function Home() {
         <DialogShell key={dialog.kind} title={dialog.kind === "booking" ? "预约排练室" : dialog.kind === "cancellation" ? "取消预约" : dialog.kind === "booked" ? "预约成功" : "预约已取消"} busy={isSubmitting} onClose={closeDialog}>
           {dialog.kind === "booking" && (
             <form className="dialog-form" onSubmit={handleBooking}>
-              <p className="dialog-intro">{formatDate(dialog.date, { year: "numeric", month: "long", day: "numeric", weekday: "long" })} · {schedule?.slot.start ?? "20:00"}–{schedule?.slot.end ?? "21:00"}</p>
+              <p className="dialog-intro">{formatDate(dialog.date, { year: "numeric", month: "long", day: "numeric", weekday: "long" })} · {dialog.slot.start}–{dialog.slot.end}</p>
               <label className="form-field" htmlFor="booking-name"><span>姓名或乐队名</span><input id="booking-name" type="text" autoComplete="name" autoFocus required maxLength={40} value={name} onChange={(event) => setName(event.target.value)} aria-describedby="booking-name-note public-name-note" /><span id="booking-name-note" className="field-hint">最多40个字。</span></label>
               <label className="consent-check" htmlFor="public-name-confirmed"><input id="public-name-confirmed" type="checkbox" checked={publicNameConfirmed} onChange={(event) => setPublicNameConfirmed(event.target.checked)} /><span id="public-name-note">我确认姓名或乐队名将公开显示。</span></label>
               {dialogError && <p className="dialog-error" role="alert">{dialogError}</p>}
@@ -525,29 +568,41 @@ export default function Home() {
 
           {dialog.kind === "cancellation" && (
             <form className="dialog-form" onSubmit={handleCancellation}>
-              <p className="dialog-intro">{formatDate(dialog.date, { year: "numeric", month: "long", day: "numeric", weekday: "long" })} · {schedule?.slot.start ?? "20:00"}–{schedule?.slot.end ?? "21:00"}</p>
-              <label className="form-field" htmlFor="booking-cancellation-code"><span>取消码</span><input id="booking-cancellation-code" type="text" autoCapitalize="characters" autoComplete="off" autoFocus value={cancellationCode} onChange={(event) => setCancellationCode(event.target.value)} placeholder="输入预约成功时显示的取消码" /></label>
-              <p className="field-hint">请输入这一天预约时收到的取消码。</p>
+              <p className="dialog-intro">{formatDate(dialog.date, { year: "numeric", month: "long", day: "numeric", weekday: "long" })} · {dialog.slot.start}–{dialog.slot.end}</p>
+              <p className="cancellation-owner">预约人：{dialog.booking.name}</p>
+              <label className="consent-check cancellation-mode" htmlFor="admin-cancellation-mode"><input id="admin-cancellation-mode" type="checkbox" disabled={isSubmitting} checked={adminMode} onChange={(event) => { setAdminMode(event.target.checked); setAdminKey(""); setAdminConfirmed(false); setDialogError(""); }} /><span>管理员协助取消</span></label>
+              {adminMode ? (
+                <>
+                  <label className="form-field" htmlFor="admin-cancellation-key"><span>管理员密钥</span><input id="admin-cancellation-key" type="password" autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={256} required disabled={isSubmitting} value={adminKey} onChange={(event) => setAdminKey(event.target.value)} placeholder="仅由管理员输入通用密钥" /></label>
+                  <p className="field-hint">请先核实预约人身份。密钥仅用于本次操作，不会保存到浏览器。</p>
+                  <label className="consent-check" htmlFor="admin-cancellation-confirmed"><input id="admin-cancellation-confirmed" type="checkbox" disabled={isSubmitting} checked={adminConfirmed} onChange={(event) => setAdminConfirmed(event.target.checked)} /><span>我已核实，确认取消 {dialog.date} {dialog.slot.start}–{dialog.slot.end}「{dialog.booking.name}」的预约。</span></label>
+                </>
+              ) : (
+                <>
+                  <label className="form-field" htmlFor="booking-cancellation-code"><span>取消码</span><input id="booking-cancellation-code" type="text" autoCapitalize="characters" autoComplete="off" autoFocus disabled={isSubmitting} value={cancellationCode} onChange={(event) => setCancellationCode(event.target.value)} placeholder="输入预约成功时显示的取消码" /></label>
+                  <p className="field-hint">{codeWasLoaded ? "已自动填入当前浏览器保存的取消码。" : "请输入这一天预约时收到的取消码。"} 忘记取消码请联系排练室管理员，核实后由管理员协助取消。</p>
+                </>
+              )}
               {dialogError && <p className="dialog-error" role="alert">{dialogError}</p>}
-              <button className="dialog-submit" type="submit" disabled={isSubmitting}>{isSubmitting ? <><span className="button-spinner" />正在提交…</> : "确认取消预约"}</button>
+              <button className="dialog-submit" type="submit" disabled={isSubmitting || (adminMode && (!adminKey || !adminConfirmed))}>{isSubmitting ? <><span className="button-spinner" />正在提交…</> : "确认取消预约"}</button>
             </form>
           )}
 
           {dialog.kind === "booked" && (
             <div className="success-content">
-              <p className="dialog-intro">{formatDate(dialog.date, { year: "numeric", month: "long", day: "numeric", weekday: "long" })} · 20:00–21:00</p>
+              <p className="dialog-intro">{formatDate(dialog.date, { year: "numeric", month: "long", day: "numeric", weekday: "long" })} · {dialog.slot.start}–{dialog.slot.end}</p>
               <div className="success-mark" aria-hidden="true">✓</div>
               <p className="success-message">预约人：{dialog.name}</p>
               <p className="success-message">预约已提交，取消时需要使用下面的取消码。</p>
               <div className="code-card"><span className="code-label">本次预约取消码</span><code className="cancellation-code">{dialog.cancellationCode}</code><button className="copy-button" type="button" onClick={() => void copyCancellationCode(dialog.cancellationCode)}>复制取消码</button></div>
-              <p className="save-code-note">请妥善保存。关闭此窗口后，取消码不会再次显示。</p>
+              <p className="save-code-note">{dialog.savedLocally ? "取消码已保存在当前浏览器，取消时会自动填入。请另行备份；换设备或清除浏览器数据后将无法读取。" : "当前浏览器无法保存取消码，请手动复制并妥善保管。"} 忘记取消码可联系排练室管理员协助取消。</p>
               <p className="copy-message" aria-live="polite">{copyMessage}</p>
               <button className="dialog-submit" type="button" onClick={closeDialog}>我已保存</button>
             </div>
           )}
 
           {dialog.kind === "cancelled" && (
-            <div className="success-content"><p className="dialog-intro">{formatDate(dialog.date, { year: "numeric", month: "long", day: "numeric", weekday: "long" })}</p><div className="success-mark" aria-hidden="true">✓</div><p className="success-message">该时段预约已取消。</p><button className="dialog-submit" type="button" onClick={closeDialog}>完成</button></div>
+            <div className="success-content"><p className="dialog-intro">{formatDate(dialog.date, { year: "numeric", month: "long", day: "numeric", weekday: "long" })} · {dialog.slot.start}–{dialog.slot.end}</p><div className="success-mark" aria-hidden="true">✓</div><p className="success-message">该时段预约已取消。</p><button className="dialog-submit" type="button" onClick={closeDialog}>完成</button></div>
           )}
         </DialogShell>
       )}

@@ -1,6 +1,7 @@
 import { db } from "../../lib/sqlite";
+import { validAdminKey } from "../../lib/admin-key";
 import {
-  SLOT, TIMEZONE, bookingName, cancellationDigest, digest,
+  SLOTS, TIMEZONE, bookingName, bookingSlot, cancellationDigest, digest,
   newCancellationCode, normalizeCancellationCode, shanghaiClock,
   slotHasEnded, validDate,
 } from "../../lib/booking-rules";
@@ -40,9 +41,9 @@ async function body(request: Request) {
   return value as Record<string, unknown>;
 }
 
-async function checkRequestRate(request: Request, operation: string) {
+async function checkRequestRate(request: Request, operation: string, requireLimit = false) {
   // Production binds to loopback; Nginx overwrites this header with the real peer IP.
-  const ip = process.env.TRUST_PROXY === "1" ? request.headers.get("x-real-ip") : null;
+  const ip = (process.env.TRUST_PROXY === "1" ? request.headers.get("x-real-ip") : null) || (requireLimit ? "direct" : null);
   if (!ip) return;
   const key = await digest(`booking-rate-v1:${operation}:${ip}`);
   const now = Date.now();
@@ -71,9 +72,9 @@ export async function GET(request: Request) {
     if (!validDate(from) || !validDate(to) || to < from) throw new InputError("请选择有效的日期范围。");
     if ((Date.parse(to) - Date.parse(from)) / 86_400_000 > 62) throw new InputError("一次最多查看 63 天的预约。");
     const result = await db().prepare(
-      "SELECT booking_date AS date, name, created_at AS createdAt FROM bookings WHERE booking_date >= ? AND booking_date <= ? ORDER BY booking_date",
+      "SELECT booking_date AS date, slot_start AS slotStart, name, created_at AS createdAt FROM bookings WHERE booking_date >= ? AND booking_date <= ? ORDER BY booking_date, slot_start",
     ).bind(from, to).all();
-    return json({ today: clock.today, now: clock.now, timezone: TIMEZONE, slot: SLOT, bookings: result.results });
+    return json({ today: clock.today, now: clock.now, timezone: TIMEZONE, slots: SLOTS, bookings: result.results });
   } catch (error) { return failure(error); }
 }
 
@@ -82,6 +83,8 @@ export async function POST(request: Request) {
     const value = await body(request);
     if (!validDate(value.date)) throw new InputError("请选择有效的预约日期。");
     const date = value.date;
+    const slot = bookingSlot(value.slotStart);
+    if (!slot) throw new InputError("请选择 08:00–21:00 之间的一小时时段。");
     const name = bookingName(value.name);
     if (!name) throw new InputError("请填写 1–40 个字的姓名或乐队名。");
     await checkRequestRate(request, "reserve");
@@ -89,34 +92,34 @@ export async function POST(request: Request) {
     if (value.cancellationCode !== undefined && !suppliedCode) throw new InputError("取消码格式不正确，请刷新后重试。");
     const cancellationCode = suppliedCode ? suppliedCode.match(/.{4}/g)!.join("-") : newCancellationCode();
     const normalized = normalizeCancellationCode(cancellationCode)!;
-    const cancellationHash = await cancellationDigest(date, normalized);
+    const cancellationHash = await cancellationDigest(date, normalized, slot.start);
     // Recovery remains available after the slot ends; only a new reservation
     // is rejected by the time check. The secret code authenticates this read.
     if (suppliedCode) {
       const existing = await db().prepare(
-        "SELECT booking_date AS date, name, created_at AS createdAt FROM bookings WHERE booking_date = ? AND cancellation_digest = ?",
-      ).bind(date, cancellationHash).first();
+        "SELECT booking_date AS date, slot_start AS slotStart, name, created_at AS createdAt FROM bookings WHERE booking_date = ? AND slot_start = ? AND cancellation_digest = ?",
+      ).bind(date, slot.start, cancellationHash).first();
       if (existing) return json({ booking: existing, cancellationCode });
     }
-    if (slotHasEnded(date)) throw new InputError("这个时段已结束，请选择其他日期。");
+    if (slotHasEnded(date, slot.start)) throw new InputError("这个时段已结束，请选择其他时段。");
     const createdAt = new Date().toISOString();
-    // The date is the primary key: concurrent requests cannot both reserve this room.
+    // Date and start time are the primary key: only one reservation per hour.
     const inserted = await db().prepare(
-      "INSERT OR IGNORE INTO bookings (booking_date, name, cancellation_digest, created_at) VALUES (?, ?, ?, ?) RETURNING booking_date",
-    ).bind(date, name, cancellationHash, createdAt).first();
+      "INSERT OR IGNORE INTO bookings (booking_date, slot_start, name, cancellation_digest, created_at) VALUES (?, ?, ?, ?, ?) RETURNING booking_date",
+    ).bind(date, slot.start, name, cancellationHash, createdAt).first();
     if (!inserted) {
       // A browser keeps its random code before sending. A retry with that same
       // secret may recover its result after a dropped response, without exposing
       // another visitor's code or granting access through a public identifier.
       if (suppliedCode) {
         const existing = await db().prepare(
-          "SELECT booking_date AS date, name, created_at AS createdAt FROM bookings WHERE booking_date = ? AND cancellation_digest = ?",
-        ).bind(date, cancellationHash).first();
+          "SELECT booking_date AS date, slot_start AS slotStart, name, created_at AS createdAt FROM bookings WHERE booking_date = ? AND slot_start = ? AND cancellation_digest = ?",
+        ).bind(date, slot.start, cancellationHash).first();
         if (existing) return json({ booking: existing, cancellationCode });
       }
-      throw new InputError("这个日期刚刚被预约了，请选择其他日期。", 409);
+      throw new InputError("这个时段刚刚被预约了，请选择其他时段。", 409);
     }
-    return json({ booking: { date, name, createdAt }, cancellationCode }, 201);
+    return json({ booking: { date, slotStart: slot.start, name, createdAt }, cancellationCode }, 201);
   } catch (error) { return failure(error); }
 }
 
@@ -124,14 +127,31 @@ export async function DELETE(request: Request) {
   try {
     const value = await body(request);
     if (!validDate(value.date)) throw new InputError("请选择需要取消的预约日期。");
+    const slot = bookingSlot(value.slotStart);
+    if (!slot) throw new InputError("请选择需要取消的一小时时段。");
+    if (value.adminKey !== undefined) {
+      await checkRequestRate(request, "admin-cancel", true);
+      if (!validAdminKey(value.adminKey, process.env.ADMIN_CANCELLATION_KEY)) {
+        throw new InputError("管理员密钥不正确，或管理员取消功能尚未启用。", 403);
+      }
+      if (typeof value.expectedCreatedAt !== "string" || typeof value.expectedName !== "string") {
+        throw new InputError("请先核对预约信息，再确认取消。");
+      }
+      // Match the reviewed reservation atomically: never cancel a replacement booking.
+      const deleted = await db().prepare(
+        "DELETE FROM bookings WHERE booking_date = ? AND slot_start = ? AND created_at = ? AND name = ? RETURNING booking_date",
+      ).bind(value.date, slot.start, value.expectedCreatedAt, value.expectedName).first();
+      if (!deleted) throw new InputError("预约已变更或已经取消，请关闭窗口并刷新排期后重试。", 409);
+      return json({ ok: true });
+    }
     await checkRequestRate(request, "cancel");
     const code = normalizeCancellationCode(value.cancellationCode);
     if (!code) throw new InputError("取消码不正确，请检查后重试。");
-    const hash = await cancellationDigest(value.date, code);
+    const hash = await cancellationDigest(value.date, code, slot.start);
     // Matching both date and digest also prevents an old code cancelling a new reservation.
     const deleted = await db().prepare(
-      "DELETE FROM bookings WHERE booking_date = ? AND cancellation_digest = ? RETURNING booking_date",
-    ).bind(value.date, hash).first();
+      "DELETE FROM bookings WHERE booking_date = ? AND slot_start = ? AND cancellation_digest = ? RETURNING booking_date",
+    ).bind(value.date, slot.start, hash).first();
     if (!deleted) throw new InputError("日期或取消码不正确，或者预约已经取消。", 404);
     return json({ ok: true });
   } catch (error) { return failure(error); }

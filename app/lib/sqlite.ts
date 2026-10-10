@@ -1,6 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { initializeBookingSchema } from "./booking-schema";
 
 const state = globalThis as typeof globalThis & { guitarRoomDb?: DatabaseSync };
 
@@ -9,21 +10,12 @@ function database() {
     const file = resolve(process.env.DATABASE_PATH || "data/bookings.sqlite");
     mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
     const connection = new DatabaseSync(file);
-    connection.exec(`
-      PRAGMA journal_mode = WAL;
-      PRAGMA busy_timeout = 5000;
-      CREATE TABLE IF NOT EXISTS bookings (
-        booking_date TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        cancellation_digest TEXT NOT NULL,
-        created_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS request_limits (
-        key TEXT PRIMARY KEY,
-        window_start INTEGER NOT NULL,
-        count INTEGER NOT NULL
-      );
-    `);
+    try {
+      initializeBookingSchema(connection);
+    } catch (error) {
+      connection.close();
+      throw error;
+    }
     state.guitarRoomDb = connection;
   }
   return state.guitarRoomDb;

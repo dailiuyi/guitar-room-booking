@@ -1,0 +1,556 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
+
+type Booking = { date: string; name: string; createdAt: string };
+type Schedule = {
+  today: string;
+  now: string;
+  timezone: string;
+  slot: { start: string; end: string };
+  bookings: Booking[];
+};
+type DialogState =
+  | { kind: "booking"; date: string }
+  | { kind: "cancellation"; date: string }
+  | { kind: "booked"; date: string; name: string; cancellationCode: string }
+  | { kind: "cancelled"; date: string };
+
+const BOOKING_TIMEZONE = "Asia/Shanghai";
+const WEEKDAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+
+function dateInTimezone(date: Date, timezone = BOOKING_TIMEZONE) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function localDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day, 12);
+}
+
+function dateString(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function addDays(value: string, amount: number) {
+  const date = localDate(value);
+  date.setDate(date.getDate() + amount);
+  return dateString(date);
+}
+
+function startOfWeek(value: string) {
+  const date = localDate(value);
+  date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+  return dateString(date);
+}
+
+function formatDate(value: string, options: Intl.DateTimeFormatOptions) {
+  return new Intl.DateTimeFormat("zh-CN", options).format(localDate(value));
+}
+
+function getTimeInTimezone(iso: string, timezone: string) {
+  const instant = new Date(iso);
+  if (Number.isNaN(instant.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(instant);
+  const part = (type: string) => Number(parts.find((item) => item.type === type)?.value);
+  return part("hour") * 60 + part("minute");
+}
+
+function dateIsEnded(date: string, schedule: Schedule | null) {
+  if (!schedule) return false;
+  if (date < schedule.today) return true;
+  if (date > schedule.today) return false;
+  const nowMinutes = getTimeInTimezone(schedule.now, schedule.timezone || BOOKING_TIMEZONE);
+  const [endHour, endMinute] = schedule.slot.end.split(":").map(Number);
+  return nowMinutes !== null && nowMinutes >= endHour * 60 + endMinute;
+}
+
+function apiErrorMessage(body: unknown, fallback: string) {
+  if (body && typeof body === "object" && "error" in body) {
+    const error = (body as { error?: unknown }).error;
+    if (typeof error === "string" && error.trim()) return error;
+  }
+  return fallback;
+}
+
+function createCancellationCode() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  const raw = Array.from(bytes, (byte) => alphabet[byte & 31]).join("");
+  return raw.match(/.{4}/g)!.join("-");
+}
+
+function GuitarMark() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 48 48" className="brand-mark">
+      <path d="M29.2 8.3a8.4 8.4 0 0 0-9.5 2.1l-2 2.4-4.1-.7a3 3 0 0 0-3.4 3.4l.8 4.1-2.5 2a8.4 8.4 0 0 0 11.8 11.8l2-2.5 4.1.8a3 3 0 0 0 3.4-3.4l-.7-4.1 2.4-2a8.4 8.4 0 0 0 2.1-9.5l4.9-4.9-2.1-2.1-4.9 4.9Z" fill="currentColor" />
+      <circle cx="18.2" cy="26.1" r="3.1" fill="#f5f0e5" />
+      <path d="m20.5 23.9 13.2-13.2m-9.8 16.6 13.2-13.2" fill="none" stroke="#f5f0e5" strokeWidth="1.1" />
+    </svg>
+  );
+}
+
+function ArrowIcon({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 20 20" className="arrow-icon" data-direction={direction}>
+      <path d="M12.5 4.5 7 10l5.5 5.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function DialogShell({
+  title,
+  children,
+  busy,
+  onClose,
+}: {
+  title: string;
+  children: ReactNode;
+  busy: boolean;
+  onClose: () => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) dialog.showModal();
+  }, []);
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className="booking-dialog"
+      aria-labelledby="dialog-title"
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!busy) dialogRef.current?.close();
+      }}
+      onClose={onClose}
+    >
+      <div className="dialog-content">
+        <div className="dialog-heading">
+          <h2 id="dialog-title">{title}</h2>
+          {!busy && <button className="icon-button dialog-close" type="button" aria-label="关闭对话框" onClick={() => dialogRef.current?.close()}><span aria-hidden="true">×</span></button>}
+        </div>
+        {children}
+      </div>
+    </dialog>
+  );
+}
+
+export default function Home() {
+  const initialToday = useMemo(() => dateInTimezone(new Date()), []);
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(initialToday));
+  const [selectedDate, setSelectedDate] = useState(initialToday);
+  const [jumpDate, setJumpDate] = useState(initialToday);
+  const [schedule, setSchedule] = useState<Schedule | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [dialog, setDialog] = useState<DialogState | null>(null);
+  const [dialogError, setDialogError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [name, setName] = useState("");
+  const [publicNameConfirmed, setPublicNameConfirmed] = useState(false);
+  const [bookingCancellationCode, setBookingCancellationCode] = useState("");
+  const [bookingOutcomeUncertain, setBookingOutcomeUncertain] = useState(false);
+  const [cancellationCode, setCancellationCode] = useState("");
+  const [copyMessage, setCopyMessage] = useState("");
+  const hasLoadedRef = useRef(false);
+  const lastLoadedWeek = useRef("");
+  const serverDateAligned = useRef(false);
+  const bookingCancellationCodeRef = useRef("");
+  const dates = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)), [weekStart]);
+  const bookingsByDate = useMemo(() => {
+    const lookup = new Map<string, Booking>();
+    for (const booking of schedule?.bookings ?? []) lookup.set(booking.date, booking);
+    return lookup;
+  }, [schedule]);
+
+  useEffect(() => {
+    let active = true;
+    let requestRunning = false;
+    const weekChanged = lastLoadedWeek.current !== weekStart;
+    if (weekChanged) {
+      setIsLoading(true);
+      setHasLoaded(false);
+      hasLoadedRef.current = false;
+      setSchedule(null);
+    }
+
+    const refresh = async () => {
+      if (requestRunning) return;
+      requestRunning = true;
+      try {
+        const from = weekStart;
+        const to = addDays(weekStart, 6);
+        const response = await fetch(`/api/bookings?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { cache: "no-store" });
+        const body: unknown = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(apiErrorMessage(body, "预约排期暂时无法加载，请点击重试。"));
+        const nextSchedule = body as Schedule;
+        if (!nextSchedule || typeof nextSchedule.today !== "string" || !Array.isArray(nextSchedule.bookings)) {
+          throw new Error("预约排期数据格式异常，请点击重试。");
+        }
+        if (!active) return;
+        setSchedule(nextSchedule);
+        setHasLoaded(true);
+        hasLoadedRef.current = true;
+        lastLoadedWeek.current = weekStart;
+        setIsLoading(false);
+        setLoadError("");
+        if (!serverDateAligned.current) {
+          serverDateAligned.current = true;
+          const serverWeek = startOfWeek(nextSchedule.today);
+          setSelectedDate(nextSchedule.today);
+          setJumpDate(nextSchedule.today);
+          if (serverWeek !== weekStart) setWeekStart(serverWeek);
+        }
+      } catch (error) {
+        if (!active) return;
+        const message = error instanceof TypeError
+          ? "无法连接预约服务，请检查网络连接后重试。"
+          : error instanceof Error
+            ? error.message
+            : "预约排期暂时无法加载，请点击重试。";
+        setLoadError(message);
+        if (!hasLoadedRef.current) setIsLoading(false);
+      } finally {
+        requestRunning = false;
+      }
+    };
+
+    void refresh();
+    const interval = window.setInterval(() => void refresh(), 30_000);
+    const onFocus = () => void refresh();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [weekStart, refreshKey]);
+
+  const retry = useCallback(() => {
+    setLoadError("");
+    setRefreshKey((value) => value + 1);
+  }, []);
+
+  const closeDialog = useCallback(() => {
+    if (isSubmitting) return;
+    setDialog(null);
+    setDialogError("");
+    setCopyMessage("");
+  }, [isSubmitting]);
+
+  const openBooking = (date: string) => {
+    setSelectedDate(date);
+    setName("");
+    setPublicNameConfirmed(false);
+    bookingCancellationCodeRef.current = "";
+    setBookingCancellationCode("");
+    setBookingOutcomeUncertain(false);
+    setDialogError("");
+    setCopyMessage("");
+    setDialog({ kind: "booking", date });
+  };
+
+  const openCancellation = (date: string) => {
+    setSelectedDate(date);
+    setCancellationCode("");
+    setDialogError("");
+    setDialog({ kind: "cancellation", date });
+  };
+
+  const handleBooking = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!dialog || dialog.kind !== "booking") return;
+    if (!name.trim()) {
+      setDialogError("请填写姓名或乐队名。");
+      return;
+    }
+    if (!publicNameConfirmed) {
+      setDialogError("请先确认姓名或乐队名将公开显示。");
+      return;
+    }
+    let code = bookingCancellationCodeRef.current;
+    if (!code) {
+      try {
+        code = createCancellationCode();
+      } catch {
+        setDialogError("此浏览器暂时无法安全生成取消码，请检查浏览器环境后重试。");
+        return;
+      }
+      bookingCancellationCodeRef.current = code;
+      setBookingCancellationCode(code);
+    }
+    setDialogError("");
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: dialog.date, name: name.trim(), cancellationCode: code }),
+      });
+      const body: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        if (response.status >= 500) {
+          setBookingOutcomeUncertain(true);
+          setDialogError("预约结果未能确认，请查看排期。若预约已生效，可以用下面的取消码取消。");
+        } else {
+          setDialogError(apiErrorMessage(body, "预约未能完成，请稍后重试。"));
+        }
+        setRefreshKey((value) => value + 1);
+        return;
+      }
+      if (!body || typeof body !== "object" || !("cancellationCode" in body) || typeof body.cancellationCode !== "string" ||
+        !("booking" in body) || !body.booking || typeof body.booking !== "object" ||
+        !("name" in body.booking) || typeof body.booking.name !== "string") {
+        setBookingOutcomeUncertain(true);
+        setDialogError("预约结果未能确认，请查看排期。若预约已生效，可以用下面的取消码取消。");
+        setRefreshKey((value) => value + 1);
+        return;
+      }
+      setDialog({ kind: "booked", date: dialog.date, name: body.booking.name, cancellationCode: body.cancellationCode });
+      setRefreshKey((value) => value + 1);
+    } catch (error) {
+      setBookingOutcomeUncertain(true);
+      setDialogError("预约结果未能确认，请查看排期。若预约已生效，可以用下面的取消码取消。");
+      setRefreshKey((value) => value + 1);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCancellation = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!dialog || dialog.kind !== "cancellation") return;
+    if (!cancellationCode.trim()) {
+      setDialogError("请输入预约时收到的取消码。");
+      return;
+    }
+    setDialogError("");
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/bookings", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: dialog.date, cancellationCode: cancellationCode.trim() }),
+      });
+      const body: unknown = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(apiErrorMessage(body, "取消未能完成，请检查取消码后重试。"));
+      setDialog({ kind: "cancelled", date: dialog.date });
+      setRefreshKey((value) => value + 1);
+    } catch (error) {
+      setDialogError(error instanceof TypeError
+        ? "无法连接预约服务，请检查网络连接后重试。"
+        : error instanceof Error
+          ? error.message
+          : "取消未能完成，请稍后重试。");
+      setRefreshKey((value) => value + 1);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const shiftWeek = (amount: number) => {
+    const nextWeek = addDays(weekStart, amount * 7);
+    const nextSelection = selectedDate >= weekStart && selectedDate <= addDays(weekStart, 6)
+      ? addDays(selectedDate, amount * 7)
+      : nextWeek;
+    setWeekStart(nextWeek);
+    setSelectedDate(nextSelection);
+    setJumpDate(nextSelection);
+  };
+
+  const jumpToDate = (value: string) => {
+    if (!value) return;
+    setJumpDate(value);
+    setSelectedDate(value);
+    setWeekStart(startOfWeek(value));
+  };
+
+  const copyCancellationCode = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopyMessage("取消码已复制。请妥善保存。");
+    } catch {
+      setCopyMessage("复制失败，请手动选择并复制上方取消码。");
+    }
+  };
+
+  const weekLabel = `${formatDate(weekStart, { month: "long", day: "numeric" })} — ${formatDate(addDays(weekStart, 6), { month: "long", day: "numeric" })}`;
+
+  return (
+    <main className="page-shell">
+      <header className="site-header">
+        <a className="brand" href="#top" aria-label="排练室预约首页">
+          <span className="brand-icon"><GuitarMark /></span>
+          <span className="brand-name">排练室预约</span>
+        </a>
+        <a className="header-link" href="#schedule">查看排期 <span aria-hidden="true">↘</span></a>
+      </header>
+
+      <div id="top" className="page-content">
+        <section className="hero" aria-labelledby="page-title">
+          <div className="hero-copy">
+            <p className="eyebrow"><span className="eyebrow-dot" /> 每日固定时段</p>
+            <h1 id="page-title">为下一段旋律，<br /><span>留出一小时。</span></h1>
+            <p className="hero-description">每日晚上 20:00–21:00，同一时段仅开放一组预约。</p>
+            <a className="hero-anchor" href="#schedule">浏览本周排期 <span aria-hidden="true">↓</span></a>
+          </div>
+          <div className="hero-art" aria-hidden="true">
+            <div className="art-halo" />
+            <div className="art-note art-note-one">♪</div>
+            <div className="art-note art-note-two">♫</div>
+            <div className="guitar-illustration">
+              <span className="guitar-neck" />
+              <span className="guitar-head"><i /><i /><i /><i /></span>
+              <span className="guitar-body"><span className="guitar-sound-hole" /><span className="guitar-bridge" /></span>
+              <span className="guitar-string guitar-string-one" /><span className="guitar-string guitar-string-two" /><span className="guitar-string guitar-string-three" />
+            </div>
+            <span className="art-caption">晚八点 · 一小时 · 一起演奏</span>
+          </div>
+        </section>
+
+        <section id="schedule" className="schedule-section" aria-labelledby="schedule-title">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow section-eyebrow">排期一览</p>
+              <h2 id="schedule-title">找到合适的一天</h2>
+            </div>
+            <div className="legend" aria-label="排期状态说明">
+              <span><i className="legend-dot available-dot" />可预约</span>
+              <span><i className="legend-dot booked-dot" />已预约</span>
+              <span><i className="legend-dot ended-dot" />已结束</span>
+            </div>
+          </div>
+
+          <div className="schedule-panel">
+            <div className="schedule-toolbar">
+              <div className="week-control">
+                <button className="icon-button week-arrow" type="button" aria-label="上一周" onClick={() => shiftWeek(-1)}><ArrowIcon direction="left" /></button>
+                <h3 className="week-label" aria-live="polite">{weekLabel}</h3>
+                <button className="icon-button week-arrow" type="button" aria-label="下一周" onClick={() => shiftWeek(1)}><ArrowIcon direction="right" /></button>
+              </div>
+              <label className="date-jump">
+                <span className="calendar-symbol" aria-hidden="true">▦</span>
+                <span className="date-jump-label">跳转日期</span>
+                <input aria-label="选择要查看的日期" type="date" value={jumpDate} onChange={(event) => jumpToDate(event.target.value)} />
+              </label>
+            </div>
+
+            {loadError && (
+              <div className="load-error" role="alert">
+                <div><strong>{hasLoaded ? "排期更新失败" : "排期暂时无法显示"}</strong><span>{loadError}</span></div>
+                <button className="retry-button" type="button" onClick={retry}>重试</button>
+              </div>
+            )}
+
+            {!hasLoaded && isLoading ? (
+              <div className="schedule-loading" role="status"><span className="loading-spinner" />正在加载排期…</div>
+            ) : !hasLoaded && loadError ? (
+              <div className="schedule-unavailable">连接恢复后，点击上方“重试”查看可预约时段。</div>
+            ) : (
+              <div className="week-grid" aria-label={`${weekLabel}排期`}>
+                {dates.map((date, index) => {
+                  const booking = bookingsByDate.get(date);
+                  const ended = dateIsEnded(date, schedule);
+                  const today = date === schedule?.today;
+                  const status = ended ? "ended" : booking ? "booked" : "available";
+                  const statusText = ended ? "已结束" : booking ? "已预约" : "可预约";
+                  return (
+                    <article className={`day-card ${status} ${date === selectedDate ? "selected" : ""}`} key={date}>
+                      <div className="day-card-top">
+                        <div className="day-date-block"><span className="day-name">{WEEKDAY_NAMES[index]}</span><span className="day-number">{formatDate(date, { day: "numeric" })}</span></div>
+                        {today && <span className="today-badge">今天</span>}
+                      </div>
+                      <div className="slot-time"><span className="time-icon" aria-hidden="true">◷</span><span>{schedule?.slot.start ?? "20:00"}–{schedule?.slot.end ?? "21:00"}</span></div>
+                      <div className="day-status"><i className="status-dot" /><span>{statusText}</span></div>
+                      {booking && <p className="booking-name" title={booking.name}>{booking.name}</p>}
+                      <div className="day-card-action">
+                        {booking ? (
+                          <button type="button" className="text-action cancel-action" onClick={() => openCancellation(date)} aria-label={`取消${formatDate(date, { month: "long", day: "numeric" })}的预约`}>输入取消码取消 <span aria-hidden="true">→</span></button>
+                        ) : ended ? (
+                          <span className="ended-note">时段已结束</span>
+                        ) : (
+                          <button type="button" className="reserve-button" disabled={!hasLoaded || Boolean(loadError)} onClick={() => openBooking(date)}>预约时段 <span aria-hidden="true">↗</span></button>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="schedule-footnote"><span className="footnote-icon" aria-hidden="true">i</span><p>预约使用的姓名或乐队名将公开显示。预约成功后请保存取消码；关闭成功提示后无法再次查看。</p></div>
+          </div>
+        </section>
+      </div>
+
+      <footer className="site-footer"><span><span className="footer-mark">♪</span> 每一次合奏，都从准时开始。</span><a href="#top">回到顶部 ↑</a></footer>
+
+      {dialog && (
+        <DialogShell key={dialog.kind} title={dialog.kind === "booking" ? "预约排练室" : dialog.kind === "cancellation" ? "取消预约" : dialog.kind === "booked" ? "预约成功" : "预约已取消"} busy={isSubmitting} onClose={closeDialog}>
+          {dialog.kind === "booking" && (
+            <form className="dialog-form" onSubmit={handleBooking}>
+              <p className="dialog-intro">{formatDate(dialog.date, { year: "numeric", month: "long", day: "numeric", weekday: "long" })} · {schedule?.slot.start ?? "20:00"}–{schedule?.slot.end ?? "21:00"}</p>
+              <label className="form-field" htmlFor="booking-name"><span>姓名或乐队名</span><input id="booking-name" type="text" autoComplete="name" autoFocus required maxLength={40} value={name} onChange={(event) => setName(event.target.value)} aria-describedby="booking-name-note public-name-note" /><span id="booking-name-note" className="field-hint">最多40个字。</span></label>
+              <label className="consent-check" htmlFor="public-name-confirmed"><input id="public-name-confirmed" type="checkbox" checked={publicNameConfirmed} onChange={(event) => setPublicNameConfirmed(event.target.checked)} /><span id="public-name-note">我确认姓名或乐队名将公开显示。</span></label>
+              {dialogError && <p className="dialog-error" role="alert">{dialogError}</p>}
+              {bookingOutcomeUncertain && bookingCancellationCode && (
+                <div className="uncertain-code">
+                  <span className="code-label">本次尝试使用的取消码</span>
+                  <code className="cancellation-code">{bookingCancellationCode}</code>
+                  <button className="copy-button" type="button" onClick={() => void copyCancellationCode(bookingCancellationCode)}>复制取消码</button>
+                  <p className="copy-message" aria-live="polite">{copyMessage}</p>
+                </div>
+              )}
+              <button className="dialog-submit" type="submit" disabled={isSubmitting || !publicNameConfirmed}>{isSubmitting ? <><span className="button-spinner" />正在提交…</> : "确认预约"}</button>
+            </form>
+          )}
+
+          {dialog.kind === "cancellation" && (
+            <form className="dialog-form" onSubmit={handleCancellation}>
+              <p className="dialog-intro">{formatDate(dialog.date, { year: "numeric", month: "long", day: "numeric", weekday: "long" })} · {schedule?.slot.start ?? "20:00"}–{schedule?.slot.end ?? "21:00"}</p>
+              <label className="form-field" htmlFor="booking-cancellation-code"><span>取消码</span><input id="booking-cancellation-code" type="text" autoCapitalize="characters" autoComplete="off" autoFocus value={cancellationCode} onChange={(event) => setCancellationCode(event.target.value)} placeholder="输入预约成功时显示的取消码" /></label>
+              <p className="field-hint">请输入这一天预约时收到的取消码。</p>
+              {dialogError && <p className="dialog-error" role="alert">{dialogError}</p>}
+              <button className="dialog-submit" type="submit" disabled={isSubmitting}>{isSubmitting ? <><span className="button-spinner" />正在提交…</> : "确认取消预约"}</button>
+            </form>
+          )}
+
+          {dialog.kind === "booked" && (
+            <div className="success-content">
+              <p className="dialog-intro">{formatDate(dialog.date, { year: "numeric", month: "long", day: "numeric", weekday: "long" })} · 20:00–21:00</p>
+              <div className="success-mark" aria-hidden="true">✓</div>
+              <p className="success-message">预约人：{dialog.name}</p>
+              <p className="success-message">预约已提交，取消时需要使用下面的取消码。</p>
+              <div className="code-card"><span className="code-label">本次预约取消码</span><code className="cancellation-code">{dialog.cancellationCode}</code><button className="copy-button" type="button" onClick={() => void copyCancellationCode(dialog.cancellationCode)}>复制取消码</button></div>
+              <p className="save-code-note">请妥善保存。关闭此窗口后，取消码不会再次显示。</p>
+              <p className="copy-message" aria-live="polite">{copyMessage}</p>
+              <button className="dialog-submit" type="button" onClick={closeDialog}>我已保存</button>
+            </div>
+          )}
+
+          {dialog.kind === "cancelled" && (
+            <div className="success-content"><p className="dialog-intro">{formatDate(dialog.date, { year: "numeric", month: "long", day: "numeric", weekday: "long" })}</p><div className="success-mark" aria-hidden="true">✓</div><p className="success-message">该时段预约已取消。</p><button className="dialog-submit" type="button" onClick={closeDialog}>完成</button></div>
+          )}
+        </DialogShell>
+      )}
+    </main>
+  );
+}

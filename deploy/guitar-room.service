@@ -1,0 +1,32 @@
+[Unit]
+Description=Guitar rehearsal room booking
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=guitar-room
+Group=guitar-room
+WorkingDirectory=/opt/guitar-room/current
+Environment=NODE_ENV=production
+Environment=NEXT_TELEMETRY_DISABLED=1
+Environment=PORT=3100
+Environment=HOSTNAME=127.0.0.1
+Environment=DATABASE_PATH=/var/lib/guitar-room/bookings.sqlite
+Environment=PUBLIC_ORIGIN=https://guitar.elma-gohan.xyz
+Environment=TRUST_PROXY=1
+ExecStart=/usr/bin/node /opt/guitar-room/current/server.js
+Restart=on-failure
+RestartSec=3
+StateDirectory=guitar-room
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/guitar-room
+
+[Install]
+WantedBy=multi-user.target
